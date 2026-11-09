@@ -8,7 +8,7 @@ import { assertPublicRuntime, runtimeEnv } from './public-runtime.mjs';
 
 // Exercise the real Angular SSR production runtime without identity or database configuration.
 test(
-  'production Angular SSR serves public pages and empty APIs without credentials',
+  'production Angular SSR serves public pages and unavailable D1 APIs without a binding',
   { timeout: 60000 },
   async () => {
     const reservation = createServer();
@@ -48,7 +48,7 @@ test(
         }
       }
       assert.ok(ready, `Angular SSR did not start: ${output}`);
-      await assertPublicRuntime(request);
+      await assertPublicRuntime(request, 503);
       const font = await request('/fonts/geist-98bbbccb.woff2');
       assert.equal(font.status, 200);
       assert.ok((await font.arrayBuffer()).byteLength > 1000);

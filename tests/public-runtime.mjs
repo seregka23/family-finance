@@ -4,7 +4,7 @@ export const runtimeEnv = () => Object.fromEntries(
   Object.entries(process.env).filter(([key]) => !/^(NOTION_|CF_ACCESS_|ALLOWED_EMAILS$|ACCOUNT_OWNER_BY_EMAIL$)/.test(key))
 );
 
-export async function assertPublicRuntime(request) {
+export async function assertPublicRuntime(request, apiStatus = 200) {
   for (const [path, heading] of [
     ['/', 'Семейные финансы'],
     ['/operations', 'Операции'],
@@ -22,8 +22,12 @@ export async function assertPublicRuntime(request) {
   }
   for (const path of ['/api/operations', '/api/expenses?month=2026-08']) {
     const response = await request(path);
-    assert.equal(response.status, 200, path);
+    assert.equal(response.status, apiStatus, path);
     const data = await response.json();
+    if (apiStatus !== 200) {
+      assert.equal(typeof data.error, 'string');
+      continue;
+    }
     if (path.startsWith('/api/operations')) {
       assert.deepEqual(data.operations, []);
       assert.deepEqual(data.accounts, []);

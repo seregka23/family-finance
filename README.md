@@ -6,18 +6,24 @@ Reporting dates use Europe/Belgrade.
 
 ## Data and access
 
-Authentication and the Notion integration have been removed. No sign-in,
-allowlist, API token, or database configuration is required. The application
-starts with empty operations, accounts, monthly plans, receipts, and reserves.
-It does not fetch, store, or modify external financial records. No replacement
-database or sample financial data is included.
+Finance data is stored in Cloudflare D1 (SQLite) through the Worker's `DB`
+binding. Authentication remains removed. The app's APIs are public and read-only;
+manage database records using Cloudflare's dashboard or authenticated SQL tools.
+No general SQL endpoint or public write API is exposed.
+
+The database starts empty. There is no automatic import from the former data
+source and no sample financial data is inserted into production. The schema
+covers accounts, categories, operations, monthly plans, receipt items, reserves
+and reserve history. See [the D1 schema](docs/d1-schema.md).
 
 The public read-only APIs retain the frontend contract:
 
 - `/api/operations?from=YYYY-MM-DD&to=YYYY-MM-DD&month=YYYY-MM-01`
 - `/api/expenses?month=YYYY-MM`
 
-Valid requests return empty finance data; invalid dates or months return 400.
+Valid requests return stored finance data; invalid dates or months return 400.
+An empty database returns empty collections. A missing binding, missing schema or
+failed database query returns 503 rather than a misleading empty report.
 The former sign-in, sign-out and callback routes return 404.
 
 ## Development
@@ -26,10 +32,16 @@ Use Node.js 22.22.3 or newer (or Node.js 24 LTS).
 
 ```sh
 npm ci
-npm run dev
+npm run db:migrate:local
+npm run preview
 ```
 
-Open http://localhost:4200. Environment files are optional. `SSR_ALLOWED_HOSTS`
+Open the local URL printed by Wrangler (normally http://localhost:8787).
+Local D1 uses persistent storage under `.wrangler/state`, isolated from production.
+`npm run dev` still runs Angular UI development on port 4200, but the Node adapter
+does not have a Cloudflare D1 binding; use Wrangler for database-backed development.
+
+Environment files are optional. `SSR_ALLOWED_HOSTS`
 can override the SSR hostname allowlist with comma-separated hostnames, without
 scheme or port. `.env.example` documents this optional setting.
 
@@ -43,6 +55,9 @@ npm start
 The Node server listens on `127.0.0.1:4000`. Set `HOST` and `PORT` to change the
 listener. Deploy `dist/family-finance` as a complete directory so the server can
 serve the sibling browser assets. `npm start` loads `.env.local` if present.
+The standalone Node adapter serves public SSR but returns 503 from finance APIs
+because D1 bindings are supplied by Cloudflare Workers. Use the Worker adapter
+for the database-backed application.
 
 `npm run build` creates both `dist/family-finance` (Node) and
 `dist/family-finance-worker` (Cloudflare). `npm run build:node` and
@@ -62,12 +77,42 @@ npx wrangler deploy
 
 `npm run deploy` builds and deploys only the Worker. `npm run preview` builds and
 runs local Wrangler development. `npm run deploy:check` checks packaging without
-uploading. `npm run cf:typegen` regenerates local Worker types.
+uploading. `npm run cf:typegen` regenerates local Worker types. Builds and
+TypeScript checks generate these types automatically, including the `DB` binding.
 
-No runtime secrets are needed. Previously configured authentication or database
-variables are unused and can be removed from the Worker dashboard. If Cloudflare
-Access was enabled separately in the dashboard, disable its protection for this
-Worker to allow public access; application code cannot remove an edge policy.
+The dedicated production database is `family-finance`, identifier
+`813be64c-d2eb-45c6-a2a0-83806f1eb85b`, created in Cloudflare's EEUR region. The
+binding and migration directory are checked into `wrangler.jsonc`. No database
+password or API token is needed by the running Worker.
+
+The initial `0001_finance.sql` migration has been applied to this production
+database; all finance tables are empty. For local setup and future migrations,
+apply schema migrations **before deploying code that expects them**:
+
+```sh
+npm run db:migrate:local
+# Authenticated Cloudflare account access is required for production commands:
+npm run db:migrate:remote
+npm run deploy
+```
+
+Wrangler tracks applied migrations in `d1_migrations`. Add new numbered migration
+files for future schema changes; do not edit migrations already applied in
+production. Database content is independent of Worker code deployments.
+
+Inspect or load data with SQL:
+
+```sh
+npm run db:execute:local -- --command="SELECT id, name, currency FROM accounts"
+npm run db:execute:local -- --file=path/to/your-data.sql
+# Production commands explicitly target the real database:
+npm run db:execute:remote -- --command="SELECT COUNT(*) AS count FROM operations"
+```
+
+Do not run test fixture SQL against production. Amounts are integer minor units
+(e.g. 12345 means 123.45); dates are calendar dates in Europe/Belgrade. Account
+balances and reserve snapshots are stored explicitly, not automatically changed
+by inserting an operation. See the schema guide for relationships and totals.
 
 Static files use Workers Static Assets. Workspace and API routes run the Worker
 first. No SPA fallback is configured, so unknown APIs remain 404 responses.
@@ -91,7 +136,7 @@ fallback.
 ## Checks
 
 - `npm test`: production builds, model/API tests, Node and local Worker runtime
-  smoke tests, and Angular component tests.
+  smoke tests with a temporary D1 database, and Angular component tests.
 - `npm run test:unit`: model and API tests without a build.
 - `npm run typecheck`: strict TypeScript checks.
 - `npx ng test --watch=false`: Angular component tests.
@@ -99,7 +144,8 @@ fallback.
 ## Layout
 
 - `src/app/`: finance UI, domain models, state and HTTP client.
-- `src/server/`: public page routing and empty read-only finance APIs.
+- `src/server/`: public routing, D1 repository and read-only finance APIs.
+- `migrations/`: versioned D1 SQLite schema migrations.
 - `src/server.ts`: Node Express SSR adapter.
 - `src/server.worker.ts`: Cloudflare SSR adapter.
 - `worker/` and `wrangler.jsonc`: Worker entry and deployment configuration.
