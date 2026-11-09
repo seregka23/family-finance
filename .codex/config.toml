@@ -1,0 +1,7 @@
+[agents]
+enabled = true
+# Backend, frontend, and tester may work in parallel when their edits do not overlap.
+# Reviewer runs after implementation, so three concurrent workers are sufficient.
+max_concurrent_threads_per_session = 3
+default_subagent_model = "gpt-6.1-terra"
+default_subagent_reasoning_effort = "medium"
