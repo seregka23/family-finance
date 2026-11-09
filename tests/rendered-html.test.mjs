@@ -4,6 +4,7 @@ import { once } from 'node:events';
 import { createServer } from 'node:net';
 import { setTimeout as delay } from 'node:timers/promises';
 import test from 'node:test';
+import {accessAudience, accessIssuer, createAccessFixture} from './access-fixtures.mjs';
 
 // Exercise the real Angular SSR production runtime, including request headers and redirects.
 test(
@@ -15,11 +16,15 @@ test(
     await once(reservation, 'listening');
     const { port } = reservation.address();
     await new Promise((resolve) => reservation.close(resolve));
-    const server = spawn(process.execPath, ['dist/family-finance/server/server.mjs'], {
+    const access = await createAccessFixture();
+    const server = spawn(process.execPath, ['--import', new URL('./fixtures/node-access-fetch.mjs', import.meta.url).href, 'dist/family-finance/server/server.mjs'], {
       cwd: new URL('../', import.meta.url),
       env: {
         ...process.env,
         ALLOWED_EMAILS: 'allowed@example.test',
+        CF_ACCESS_TEAM_DOMAIN: new URL(accessIssuer).hostname,
+        CF_ACCESS_AUD: accessAudience,
+        ACCESS_TEST_JWKS: JSON.stringify(access.jwks),
         NOTION_TOKEN: '',
         PORT: String(port),
         HOST: '127.0.0.1'
@@ -50,12 +55,14 @@ test(
       }
       assert.ok(ready, `Angular SSR did not start: ${output}`);
       const anonymous = await request('/');
-      assert.equal(anonymous.status, 307);
-      assert.match(anonymous.headers.get('location'), /^\/signin-with-chatgpt\?return_to=%2F$/);
-      const denied = await request('/', { 'oai-authenticated-user-email': 'denied@example.test' });
+      assert.equal(anonymous.status, 401);
+      assert.equal(anonymous.headers.get('cache-control'), 'private, no-store');
+      assert.equal(anonymous.headers.get('location'), null);
+      assert.equal((await request('/api/operations', { 'oai-authenticated-user-email': 'allowed@example.test', 'Cf-Access-Authenticated-User-Email':'allowed@example.test' })).status, 401);
+      const denied = await request('/', { 'Cf-Access-Jwt-Assertion': access.token('denied@example.test') });
       assert.equal(denied.status, 403);
       assert.match(await denied.text(), /Нет доступа/);
-      const allowed = { 'oai-authenticated-user-email': 'allowed@example.test' };
+      const allowed = { 'Cf-Access-Jwt-Assertion': access.token() };
       const page = await request('/', allowed);
       assert.equal(page.status, 200);
       assert.equal(page.headers.get('cache-control'), 'private, no-store');
@@ -71,13 +78,10 @@ test(
         ['/dashboards', 'Дашборды']
       ]) {
         const anonymousRoute = await request(path);
-        assert.equal(anonymousRoute.status, 307);
+        assert.equal(anonymousRoute.status, 401);
+        assert.equal(anonymousRoute.headers.get('location'), null);
         assert.equal(
-          anonymousRoute.headers.get('location'),
-          `/signin-with-chatgpt?return_to=${encodeURIComponent(path)}`
-        );
-        assert.equal(
-          (await request(path, { 'oai-authenticated-user-email': 'denied@example.test' })).status,
+          (await request(path, { 'Cf-Access-Jwt-Assertion': access.token('denied@example.test') })).status,
           403
         );
         const route = await request(path, allowed);
@@ -91,7 +95,7 @@ test(
       for (const endpoint of ['/api/operations', '/api/expenses?month=2026-08']) {
         assert.equal((await request(endpoint)).status, 401);
         assert.equal(
-          (await request(endpoint, { 'oai-authenticated-user-email': 'denied@example.test' }))
+          (await request(endpoint, { 'Cf-Access-Jwt-Assertion': access.token('denied@example.test') }))
             .status,
           403
         );
@@ -99,6 +103,9 @@ test(
         assert.equal(unavailable.status, 503);
         assert.equal(unavailable.headers.get('cache-control'), 'private, no-store');
       }
+      assert.equal((await request('/signout-with-chatgpt')).headers.get('location'), '/cdn-cgi/access/logout');
+      assert.equal((await request('/signin-with-chatgpt?return_to=%2Foperations')).headers.get('location'), '/operations');
+      assert.equal((await request('/signin-with-chatgpt?return_to=https%3A%2F%2Fevil.example')).headers.get('location'), '/');
       const font = await request('/fonts/geist-98bbbccb.woff2');
       assert.equal(font.status, 200);
       assert.ok((await font.arrayBuffer()).byteLength > 1000);

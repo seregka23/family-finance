@@ -3,7 +3,7 @@ import test from 'node:test';
 import { loadTs } from './load-ts.mjs';
 const { GET } = await loadTs('../src/server/api/expenses.ts', {
   '../access-control': 'export const isEmailAllowed = () => globalThis.expenseTestAllowed;',
-  '../auth': 'export const getChatGPTUser = () => globalThis.expenseTestUser;'
+  '../auth': 'export const getChatGPTUser = async () => globalThis.expenseTestUser;'
 });
 const pageRow = (i) => ({
   id: String(i),

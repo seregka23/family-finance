@@ -14,7 +14,11 @@ cp .env.example .env.local
 npm run dev
 ```
 
-Open http://localhost:4200 through the existing trusted authentication proxy.
+Access the development server through a Cloudflare Access-protected tunnel.
+Configure `CF_ACCESS_TEAM_DOMAIN` (for example,
+`https://your-team.cloudflareaccess.com`) and `CF_ACCESS_AUD` with your Access
+application audience. The application verifies Access JWT signatures and claims;
+client-supplied identity headers cannot authenticate a request.
 Set `NOTION_TOKEN` to a Notion integration with access to the data sources in
 [the data contract](docs/notion-data-contract.md). `ALLOWED_EMAILS` is a
 comma-separated email allowlist. `ACCOUNT_OWNER_BY_EMAIL` maps emails to account
@@ -27,14 +31,15 @@ missing Notion configuration returns a private 503 response from the APIs.
 
 ## Authentication and production
 
-The app preserves the existing trusted authentication proxy contract. The proxy
-must authenticate visitors, strip client-supplied `oai-authenticated-*` headers,
-and inject `oai-authenticated-user-email`. Optional names use
-`oai-authenticated-user-full-name` and
-`oai-authenticated-user-full-name-encoding: percent-encoded-utf-8`.
-The proxy owns `/signin-with-chatgpt`, `/signout-with-chatgpt`, and `/callback`.
-Direct requests to those endpoints return a configuration error rather than an
-Angular page.
+Cloudflare Access authenticates visitors. The server independently verifies the
+`Cf-Access-Jwt-Assertion` signature against your team's signing keys, requires
+its issuer and application audience, and checks token expiry. It then checks the
+signed email against `ALLOWED_EMAILS`. Neither `oai-authenticated-*` nor
+`Cf-Access-Authenticated-User-Email` headers grant access.
+
+Configure `CF_ACCESS_TEAM_DOMAIN` and `CF_ACCESS_AUD` in the runtime environment.
+Missing configuration denies access. The existing sign-in/sign-out URL aliases
+use Cloudflare Access rather than the former Sites authentication proxy.
 
 ```sh
 npm run build
@@ -44,14 +49,12 @@ npm start
 The production server listens on `127.0.0.1:4000` by default. `PORT` and `HOST`
 configure the listener. Deploy `dist/family-finance` as a complete directory so
 that `server/server.mjs` can serve the sibling `browser` assets. For a container,
-set `HOST=0.0.0.0` and restrict ingress to the trusted proxy.
+set `HOST=0.0.0.0` behind your Access-protected ingress.
 
-Keep direct public access to the Node origin blocked. Identity headers are
-trusted proxy input, not independently verified tokens. The SSR host allowlist
-in `angular.json` includes localhost, 127.0.0.1, and the existing Family Finance
-hostname. Set `SSR_ALLOWED_HOSTS` to an explicit comma-separated hostname list
-when deploying at a different origin (hostnames only, without scheme or port).
-Do not enable wildcard host trust or forward unchecked proxy headers.
+The SSR host allowlist in `angular.json` includes localhost, 127.0.0.1, the
+existing Sites hostname, and `family-finance.seregka23.workers.dev`.
+Set `SSR_ALLOWED_HOSTS` to an explicit comma-separated hostname list when
+using another origin (hostnames only, without scheme or port).
 
 The Express server checks authentication and allowlisting before Angular SSR,
 serves the Notion APIs at `/api/operations` and `/api/expenses`, and marks private
@@ -91,19 +94,34 @@ runtime testing, use `npm run preview`. After a build, `npm run deploy:check`
 checks packaging without uploading or deploying anything. `npm run cf:typegen`
 regenerates local Workers types after configuration changes.
 
-In the Cloudflare dashboard, configure the runtime values `ALLOWED_EMAILS`,
-`ACCOUNT_OWNER_BY_EMAIL`, and `SSR_ALLOWED_HOSTS` for the exact hostname your
-trusted proxy serves. Store `NOTION_TOKEN` as a Worker secret. Build-time
-variables do not replace Worker runtime variables. The compatibility settings
-make runtime bindings available through `process.env`; `keep_vars` preserves
-existing dashboard-managed variables on deployment.
+Complete this setup before using the deployed app:
 
-This app trusts identity headers from the existing authentication proxy, so its
-Worker must remain an origin reachable only through that proxy (for example,
-a Service Binding from the proxy Worker). Direct `workers.dev` and version
-preview URLs are disabled in the checked-in configuration. Keep the proxy's
-existing sign-in routes and header replacement; do not attach an unprotected
-public route directly to this Worker.
+1. Enable Zero Trust/Access in your Cloudflare account. In **Workers & Pages →
+   family-finance → Access**, protect production traffic with an Allow policy
+   containing only the family email addresses that should sign in. You can also
+   enable Access under **Settings → Domains & Routes** for the `workers.dev` URL.
+2. Copy the Access team domain and application's AUD tag into Worker runtime
+   variables `CF_ACCESS_TEAM_DOMAIN` and `CF_ACCESS_AUD`.
+3. Set `ALLOWED_EMAILS` to the same comma-separated email allowlist. Configure
+   `ACCOUNT_OWNER_BY_EMAIL` for finance ownership and `SSR_ALLOWED_HOSTS` if
+   using a different hostname.
+4. Add `NOTION_TOKEN` as a Worker **secret** with access to the required Notion
+   data sources. Never put this token into source control or chat.
+5. Deploy the updated Worker and open
+   https://family-finance.seregka23.workers.dev/. Access should display its sign-in
+   flow before the finance dashboard.
+
+Build-time variables do not replace Worker runtime variables. The compatibility
+settings make runtime bindings available through `process.env`; `keep_vars`
+preserves dashboard-managed variables on deployment. `workers_dev` is enabled;
+the application rejects unsigned or invalid identity even if Access has not yet
+been configured. Missing Notion configuration returns a private 503 API response.
+Version preview URLs remain disabled. Use `npx wrangler deploy` for the production
+pipeline; `npx wrangler preview` requires separate preview configuration and is
+not the production deploy command.
+
+See [Cloudflare's Worker Access setup](https://developers.cloudflare.com/workers/configuration/cloudflare-access/)
+and [JWT validation](https://developers.cloudflare.com/cloudflare-one/access-controls/applications/http-apps/authorization-cookie/validating-json/).
 
 Cloudflare's [static asset routing](https://developers.cloudflare.com/workers/static-assets/routing/worker-script/)
 serves browser files while page and API paths run the Worker first. No SPA HTML
@@ -114,7 +132,7 @@ fallback is configured, so an API request cannot become a successful HTML page.
 The shell uses a router outlet; each workspace page is loaded as a separate lazy
 route: `/` (overview), `/operations`, `/plan`, `/accounts`, and `/dashboards`.
 These URLs support direct SSR loads and normal browser back/forward navigation.
-The authentication proxy continues to protect every route.
+The server verifies Cloudflare Access identity before rendering each workspace route.
 
 `FinanceWorkspace` owns the shared filter state and resource-backed finance data.
 Derived values use `computed`; dependent choices use `linkedSignal`. The resource
@@ -152,7 +170,7 @@ HTML escaping, and reserve/history filtering.
 - `src/app/`: shell, shared workspace state, HttpClient service, and finance models.
 - `src/app/features/`: lazy feature pages, expenses, and reserves.
 - `src/app/shared/`: reusable UI components with signal inputs.
-- `src/server/`: trusted proxy authentication, access control, and Notion APIs.
+- `src/server/`: verified Cloudflare Access authentication, access control, and Notion APIs.
 - `src/server.ts`: Express server and Node SSR adapter.
 - `src/server.worker.ts`: platform-neutral Angular SSR and API entry.
 - `worker/` and `wrangler.jsonc`: Cloudflare module and deployment configuration.

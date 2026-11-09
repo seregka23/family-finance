@@ -101,7 +101,7 @@ const json = (body: unknown, status = 200) =>
   Response.json(body, { status, headers: { 'Cache-Control': 'private, no-store' } });
 
 export async function GET(request: Request) {
-  const user = getChatGPTUser(request);
+  const user = await getChatGPTUser(request);
   if (!user) return json({ error: 'Authentication required' }, 401);
   if (!isEmailAllowed(user.email)) return json({ error: 'Access denied' }, 403);
 
