@@ -56,6 +56,13 @@
               "optimization": false,
               "extractLicenses": false,
               "sourceMap": true
+            },
+            "worker": {
+              "ssr": {
+                "entry": "src/server.worker.ts",
+                "platform": "neutral"
+              },
+              "outputPath": "dist/family-finance-worker"
             }
           },
           "defaultConfiguration": "production"
