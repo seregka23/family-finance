@@ -80,6 +80,16 @@ totals. Feature components use signals directly rather than getter/setter adapte
 The operation dialog uses a two-way model input and a post-render effect for native
 focus/scroll management. Presentational components live under `shared/`.
 
+## Build dependency compatibility
+
+Angular Build 22.2.6 includes `@oxc-parser/binding-wasm32-wasi@0.156.0`, which
+pins Emnapi alpha versions outside its WASM runtime's supported peer ranges.
+The version-scoped `overrides` in `package.json` align that binding's Emnapi core
+and runtime to `2.0.0-beta.3`, supported by `@napi-rs/wasm-runtime@1.2.7`.
+This keeps normal npm peer validation enabled. Remove the workaround when the
+upstream binding fixes its dependency declarations; the parser WASI regression
+test checks synchronous and asynchronous parsing without native fallback.
+
 ## Checks
 
 - `npm test`: production Angular build, model/API tests, real SSR-server smoke
