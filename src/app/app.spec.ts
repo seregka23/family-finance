@@ -1,3 +1,6 @@
+import { AuthService } from './auth-service';
+import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { of, Subject } from 'rxjs';
@@ -15,7 +18,8 @@ describe('Routed finance workspace', () => {
   beforeEach(() => {
     TestBed.configureTestingModule({
       providers: [
-        provideRouter(routes),
+        provideRouter(routes), provideHttpClient(), provideHttpClientTesting(),
+        { provide: AuthService, useValue: { logout: vi.fn(), busy: () => false, error: () => '' } },
         { provide: AppClock, useValue: { now: new Date('2026-11-10') } },
         { provide: FinanceApi, useValue: { operations: () => of(fixtureData) } }
       ]
@@ -95,6 +99,21 @@ describe('Routed finance workspace', () => {
     await fixture.whenStable();
     expect(workspace.selected()).toBeNull();
     expect(host.querySelector('dialog')).toBeNull();
+  });
+
+  it('renders public authentication routes without starting finance requests', async () => {
+    const operations = vi.fn(() => of(fixtureData));
+    TestBed.overrideProvider(FinanceApi, { useValue: { operations } });
+    const fixture = TestBed.createComponent(App);
+    const router = TestBed.inject(Router);
+    await router.navigateByUrl('/login');
+    await fixture.whenStable();
+    expect(fixture.nativeElement.querySelector('#auth-title')?.textContent).toBe('Вход');
+    expect(operations).not.toHaveBeenCalled();
+    await router.navigateByUrl('/register?token=invitation');
+    await fixture.whenStable();
+    expect(fixture.nativeElement.querySelector('#auth-title')?.textContent).toBe('Регистрация');
+    expect(operations).not.toHaveBeenCalled();
   });
 
 });

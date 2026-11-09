@@ -1,6 +1,7 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
 import { of, throwError } from 'rxjs';
+import { AuthService } from '../../auth-service';
 import { provideRouter } from '@angular/router';
 import { FinanceApi } from '../../finance-api';
 import { aggregateExpenses } from '../../models/expense-model';
@@ -24,7 +25,7 @@ const data = aggregateExpenses(
 describe('Expense dashboards', () => {
   beforeEach(() =>
     TestBed.configureTestingModule({
-      providers: [provideRouter([]), { provide: FinanceApi, useValue: { expenses: () => of(data) } }]
+      providers: [provideRouter([]), { provide: AuthService, useValue: { logout: vi.fn(), busy: () => false, error: () => '' } }, { provide: FinanceApi, useValue: { expenses: () => of(data) } }]
     })
   );
   it('renders escaped top ten purchases, both chart modes, merchant sorting and expansion', async () => {
@@ -57,8 +58,12 @@ describe('Expense dashboards', () => {
     await fixture.whenStable();
     const host: HTMLElement = fixture.nativeElement;
     expect(fixture.componentInstance.authError()).toBe(status);
-    const link = host.querySelector<HTMLAnchorElement>('.auth-link');
-    expect(link?.getAttribute('href')).toBe(status === 401 ? '/auth/login?return_to=%2F' : '/auth/logout');
+    const link = host.querySelector<HTMLElement>('.auth-link');
+    if (status === 401) expect(link?.getAttribute('href')).toBe('/login?return_to=%2F');
+    else {
+      link?.click();
+      expect(TestBed.inject(AuthService).logout).toHaveBeenCalledOnce();
+    }
     expect(host.querySelectorAll('.expense-rank')).toHaveLength(0);
   });
 

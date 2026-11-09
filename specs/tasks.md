@@ -1,49 +1,65 @@
-# Restore authentication for D1 finance
+# In-app registration and authorization
 
 ## Task
 
-Add authentication to the existing D1-backed Family Finance application. Use the
-previously selected Cloudflare Access provider and confirmed allowed email
-`seregka23@gmail.com`. Preserve the D1 database, schema and financial behavior.
+Implement registration, sign-in and authorization inside the D1-backed app,
+replacing the Cloudflare Access implementation in the existing authentication PR.
+The initial owner email is `seregka23@gmail.com`.
 
 ## Acceptance criteria
 
-- Verify signed Access identities for workspace pages and both finance APIs,
-  checking issuer, audience, signature, expiry, subject and signed email.
-- Enforce the configured email allowlist; ignore spoofed email headers/cookies.
-- Missing configuration fails closed (503), missing/invalid identity returns 401,
-  denied verified users receive 403. Authenticate before validation or D1 queries.
-- Add working Access login/logout routes and accessible sign-out controls;
-  recover from expired/denied sessions without exposing old finance totals.
-- Preserve D1 reads and precision safeguards, without schema/data changes or a
-  local authentication bypass.
-- Update configuration/docs and signed-identity API/Node/Worker/Angular tests;
-  pass both builds, TypeScript, deployment checks and final review.
+- Provide public login/registration screens isolated from the finance workspace.
+- Use email-bound, expiring, single-use invitations for private family registration;
+  no unverified public signup or open administrator bootstrap.
+- Store versioned salted password hashes, opaque hashed sessions, invites and
+  rate-limit state in an additive D1 migration. Protect passwords with standard
+  Web Crypto PBKDF2-SHA256 at 600,000 iterations and a separate random pepper.
+- Enforce session expiry, enabled status and member/admin authorization before
+  finance reads; revoke/rotate sessions and secure cookies appropriately.
+- Protect auth writes with strict Origin checks, JSON body limits and rate limits.
+- Keep invitation tokens out of HTTP URLs/logs and remove their browser fragments.
+- Preserve finance schemas, reports, precision safeguards and session-expiry UI.
+- Pass real registration/authorization/D1/Node/Worker/Angular tests and review.
+- Initialize auth storage/configuration and provide a private owner invitation;
+  existing finance records remain untouched.
 
 ## Status
 
-Source implementation is complete and read-only review has no blocking findings.
+Source implementation is complete; final read-only review has no blocking findings.
+The existing PR #10 is updated to replace Cloudflare Access with application-owned
+authentication. No team-domain setup is required.
 
 Validation:
 
-- `npm test`: both production builds, 27 Node/model/API/runtime tests and
-  17 Angular tests passed (44 total).
-- Signed RSA/JWT tests cover signatures, claims, email allowlisting, spoofed
-  identity headers/cookies, configuration errors and denial before D1 access.
-- Node and real local D1 Worker smoke tests cover authenticated pages/APIs,
-  denied identities and persisted finance data.
-- UI regression tests open an operation dialog, trigger 401/403, and verify old
-  details disappear and do not return after recovery.
-- Strict TypeScript, generated binding types and whitespace checks passed.
-- Wrangler deployment dry run passed with D1 and the confirmed email allowlist:
-  28 browser assets, 1211.52 KiB module (281.03 KiB gzip).
-- Adding `jose` completed without install warnings.
+- `npm test`: both production builds, 30 Node/model/API/runtime tests and
+  22 Angular tests passed (52 total).
+- Real local Worker+D1 tests execute invitation registration, password login,
+  authenticated finance reads, logout and persistence across restarts.
+- Security tests cover invite replay/expiry/email binding and concurrency,
+  password hashing, cookie flags, session rotation/revocation/expiry, disabled
+  users/roles, origin/body protections, rate limits and forged identity headers.
+- Browser/HTTP tests verify fragment-only invitation delivery, immediate history
+  removal, no invitation in HTTP URLs/SSR HTML, and private helper output files.
+- Fresh `npm ci` installed 452 packages without warnings.
+- TypeScript, generated bindings, whitespace checks, the local migration command
+  and deployment dry run passed. Worker packaging contains 34 assets, 1284.16 KiB
+  module (292.75 KiB gzip). Native timing-safe comparison was verified in workerd.
 
-Live activation remains pending: Cloudflare reports Access is not enabled for
-this account. The user was asked to complete onboarding and provide the team
-domain. The application AUD tag must also be set in Worker runtime settings.
-The checked-in allowlist contains `seregka23@gmail.com`. Until setup is complete,
-protected routes fail closed. No live configuration, Worker deployment, D1 schema
-or financial data was changed during this task. After source merge/deployment
-and account setup, verify the live Access sign-in, allowed-user data and logout.
-The overall live-authentication task is not yet closed.
+Production preparation:
+
+- Applied additive `0002_auth.sql` to the existing D1 database and recorded the
+  migration. Verified no foreign-key violations and no users or sessions yet.
+- Created a cryptographically random `AUTH_SECRET` directly in Cloudflare without
+  printing or committing it. Cloudflare's secret API publishes a secret version
+  of the existing Worker; the new application code still awaits PR deployment.
+- Stored one expiring, single-use admin invitation for `seregka23@gmail.com` in
+  D1 as a hash. Its raw registration link is only in a private mode-0600 file
+  delivered to the user, outside the repository. It expires after 24 hours.
+- Existing finance tables and records were unchanged.
+
+After merge/deployment, use the private invitation to register and verify the live
+flow. Production authentication and CPU usage have not been tested on the deployed
+new code. The local 600,000-iteration password hash took about 79 ms; the production
+Worker must have sufficient CPU budget. Billing settings were not changed.
+Self-service password recovery and account-administration UI are not implemented;
+trusted administrators manage invitations and user status through SQL tooling.

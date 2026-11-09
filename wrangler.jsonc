@@ -17,7 +17,8 @@
       "/accounts",
       "/dashboards",
       "/api/*",
-      "/auth/*"
+      "/login",
+      "/register"
     ]
   },
   "observability": {
@@ -41,6 +42,11 @@
     }
   ],
   "vars": {
-    "ALLOWED_EMAILS": "seregka23@gmail.com"
+    "AUTH_ORIGIN": "https://family-finance.seregka23.workers.dev"
+  },
+  "secrets": {
+    "required": [
+      "AUTH_SECRET"
+    ]
   }
 }

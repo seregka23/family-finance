@@ -1,0 +1,32 @@
+<main class="auth-page">
+  <section class="auth-card" aria-labelledby="auth-title">
+    <p class="auth-brand">Семейные финансы</p>
+    <h1 id="auth-title">{{ register ? 'Регистрация' : 'Вход' }}</h1>
+    <p>{{ register ? 'Для регистрации потребуется приглашение.' : 'Войдите, чтобы открыть семейный бюджет.' }}</p>
+    <form #form="ngForm" (ngSubmit)="submit(form)" novalidate>
+      @if (register) {
+        <label for="auth-name">Имя <span>(необязательно)</span></label>
+        <input id="auth-name" name="name" [(ngModel)]="name" autocomplete="name" maxlength="100" />
+      }
+      <label for="auth-email">Электронная почта</label>
+      <input id="auth-email" name="email" [(ngModel)]="email" type="email" autocomplete="username" required email maxlength="254" />
+      <label for="auth-password">Пароль</label>
+      <input id="auth-password" name="password" [(ngModel)]="password" type="password" [autocomplete]="register ? 'new-password' : 'current-password'" required [minlength]="register ? 12 : 1" maxlength="128" />
+      @if (register) {
+        <small>Не менее 12 символов.</small>
+        <label for="auth-confirm">Повторите пароль</label>
+        <input id="auth-confirm" name="confirmPassword" [(ngModel)]="confirmPassword" type="password" autocomplete="new-password" required minlength="12" maxlength="128" />
+        <label for="auth-token">Код приглашения</label>
+        <input id="auth-token" name="token" [(ngModel)]="token" type="password" autocomplete="off" required maxlength="64" pattern="[0-9a-fA-F]{64}" aria-describedby="auth-token-help" />
+        <small id="auth-token-help">Код состоит из 64 шестнадцатеричных символов.</small>
+      }
+      @if (error()) { <p class="auth-error" role="alert">{{ error() }}</p> }
+      <button type="submit" [disabled]="busy()">{{ busy() ? 'Подождите…' : register ? 'Зарегистрироваться' : 'Войти' }}</button>
+    </form>
+    @if (register) {
+      <p>Уже есть аккаунт? <a routerLink="/login" [queryParams]="{ return_to: returnTo }">Войти</a></p>
+    } @else {
+      <p>Есть приглашение? <a routerLink="/register" [queryParams]="{ return_to: returnTo }">Зарегистрироваться</a></p>
+    }
+  </section>
+</main>

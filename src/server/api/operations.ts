@@ -14,7 +14,7 @@ import {
 } from '../database';
 
 export async function GET(request: Request, database?: FinanceDatabase) {
-  const access = await requireAccess(request);
+  const access = await requireAccess(request, database);
   if (access instanceof Response) return access;
   const url = new URL(request.url);
   const from = url.searchParams.get('from');

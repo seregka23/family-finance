@@ -6,7 +6,6 @@ import { AppClock } from '../app-clock';
 import { routes } from '../app.routes';
 import { FinanceApi } from '../finance-api';
 import { fixtureData } from '../testing/finance-fixtures';
-import { Operations } from './operations';
 
 describe('Operations lazy route', () => {
   it('can be loaded directly without first visiting the overview', async () => {
@@ -18,7 +17,7 @@ describe('Operations lazy route', () => {
       ]
     });
     const harness = await RouterTestingHarness.create();
-    await harness.navigateByUrl('/operations', Operations);
+    await harness.navigateByUrl('/operations');
     await harness.fixture.whenStable();
     expect(harness.routeNativeElement?.querySelectorAll('.trow')).toHaveLength(2);
   });

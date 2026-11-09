@@ -54,7 +54,7 @@
           <a class="auth-link" [href]="loginUrl()">Войти снова</a>
         } @else if (authError() === 403) {
           <p>У этого аккаунта нет доступа. Войдите с другим аккаунтом.</p>
-          <a class="auth-link" href="/auth/logout">Войти с другим аккаунтом</a>
+          <button class="auth-link" type="button" [disabled]="auth.busy()" (click)="auth.logout()">Войти с другим аккаунтом</button>
         } @else {
           <p>Проверьте подключение и повторите загрузку. Неполные итоги не показаны.</p>
           <button class="refresh-button" (click)="reload()">Повторить</button>

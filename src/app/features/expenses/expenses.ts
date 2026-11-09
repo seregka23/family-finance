@@ -3,6 +3,7 @@ import { rxResource } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
 import { AppClock } from '../../app-clock';
 import { authErrorStatus, loginUrl } from '../../auth-errors';
+import { AuthService } from '../../auth-service';
 import { FinanceApi } from '../../finance-api';
 import { money as amountLabel, eventValue } from '../../finance-format';
 import { belgradeDay } from '../../models/expense-model';
@@ -18,6 +19,7 @@ const dateLabel = (date: string) =>
 export class Expenses {
   private readonly clock = inject(AppClock);
   private readonly api = inject(FinanceApi);
+  readonly auth = inject(AuthService);
   private readonly router = inject(Router);
   private readonly browserReady = signal(false);
   readonly currentMonth = belgradeDay(this.clock.now).slice(0, 7);

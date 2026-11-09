@@ -23,7 +23,9 @@
     "prebuild:node": "npm run cf:typegen",
     "prebuild:worker": "npm run cf:typegen",
     "pretypecheck": "npm run cf:typegen",
-    "predev": "npm run cf:typegen"
+    "predev": "npm run cf:typegen",
+    "auth:setup:local": "node scripts/setup-local-auth.mjs",
+    "auth:invite": "node scripts/create-invite.mjs"
   },
   "private": true,
   "packageManager": "npm@11.9.0",
@@ -37,7 +39,6 @@
     "@angular/router": "^22.2.0",
     "@angular/ssr": "^22.2.6",
     "express": "^5.1.0",
-    "jose": "6.1.3",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0"
   },

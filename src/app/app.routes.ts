@@ -1,6 +1,12 @@
 import { Routes } from '@angular/router';
 
 export const routes: Routes = [
+  { path: 'login', loadComponent: () => import('./features/auth-page').then((m) => m.AuthPage), data: { mode: 'login' } },
+  { path: 'register', loadComponent: () => import('./features/auth-page').then((m) => m.AuthPage), data: { mode: 'register' } },
+  {
+    path: '',
+    loadComponent: () => import('./finance-shell').then((m) => m.FinanceShell),
+    children: [
   {
     path: '',
     pathMatch: 'full',
@@ -15,5 +21,7 @@ export const routes: Routes = [
   {
     path: 'dashboards',
     loadComponent: () => import('./features/expenses/expenses').then((m) => m.Expenses)
+  }
+    ]
   }
 ];

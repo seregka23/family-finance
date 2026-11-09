@@ -57,7 +57,7 @@ test('missing binding/schema fail503 while invalid and injected inputs fail400 b
     ]) {
       assert.equal((await handler(request(path), fixture.db)).status, 400);
     }
-    assert.equal(fixture.statements.length, 0);
+    assert.ok(fixture.statements.every(({ sql }) => sql.includes('auth_sessions')));
   } finally { fixture.close(); uninitialized.close(); }
 });
 

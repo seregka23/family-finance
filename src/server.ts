@@ -6,6 +6,7 @@ import {
 } from '@angular/ssr/node';
 import express from 'express';
 import { join } from 'node:path';
+import { handleAuthRequest } from './server/api/auth';
 import { GET as expenses } from './server/api/expenses';
 import { GET as operations } from './server/api/operations';
 import { allowedSsrHosts, handlePageRequest } from './server/pages';
@@ -19,8 +20,18 @@ function webRequest(req: express.Request) {
   for (const [key, value] of Object.entries(req.headers)) {
     if (value !== undefined) headers.set(key, Array.isArray(value) ? value.join(',') : value);
   }
-  return new Request(new URL(req.originalUrl, 'http://localhost'), { headers });
+  return new Request(new URL(req.originalUrl, 'http://localhost'), {
+    headers,
+    method: req.method,
+    ...(req.method === 'POST' ? { body: JSON.stringify(req.body ?? {}) } : {})
+  });
 }
+
+app.use('/api/auth', express.json({ limit: '4kb' }), (req, res, next) => {
+  handleAuthRequest(webRequest(req))
+    .then((response) => writeResponseToNodeResponse(response, res))
+    .catch(next);
+});
 
 app.get(['/api/operations', '/api/expenses'], async (req, res, next) => {
   try {

@@ -6,7 +6,14 @@ export function authErrorStatus(error: unknown): 401 | 403 | null {
   return null;
 }
 
+const financePaths = new Set(['/', '/operations', '/plan', '/accounts', '/dashboards']);
+
+export function safeReturnTo(route: string | null): string {
+  if (!route || /[\\\x00-\x1f\x7f]/.test(route) || /%(?:0[0-9a-f]|1[0-9a-f]|7f|5c)/i.test(route)) return '/';
+  const path = route.split(/[?#]/, 1)[0];
+  return financePaths.has(path) ? route : '/';
+}
+
 export function loginUrl(route: string): string {
-  const localRoute = route.startsWith('/') && !route.startsWith('//') ? route : '/';
-  return `/auth/login?return_to=${encodeURIComponent(localRoute)}`;
+  return `/login?return_to=${encodeURIComponent(safeReturnTo(route))}`;
 }

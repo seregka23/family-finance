@@ -1,105 +1,133 @@
-import { createRemoteJWKSet, jwtVerify } from 'jose';
+import { timingSafeEqual } from 'node:crypto';
+import { json, type FinanceDatabase } from './database';
 
-export type AccessUser = { email: string; displayName: string; fullName: string | null };
-type AccessConfiguration = { issuer: string; audience: string };
+export type AuthUser = { id: string; email: string; name: string; role: 'member' | 'admin' };
+export type AuthConfiguration = { origin: string; secret: string; secure: boolean };
+export const PASSWORD_VERSION = 'pbkdf2-sha256-hmac-v1';
+export const PASSWORD_ITERATIONS = 600000;
+const SESSION_SECONDS = 604800;
+const encoder = new TextEncoder();
 
-// Public signing keys may be reused across requests; user identity is never cached.
-const signingKeys = new Map<string, ReturnType<typeof createRemoteJWKSet>>();
-
-export function accessConfiguration(): AccessConfiguration | null {
-  const team = process.env['CF_ACCESS_TEAM_DOMAIN']?.trim();
-  const audience = process.env['CF_ACCESS_AUD']?.trim();
-  if (!team || !audience) return null;
+export function authConfiguration(): AuthConfiguration | null {
+  const secret = process.env['AUTH_SECRET'];
+  const configuredOrigin = process.env['AUTH_ORIGIN'];
+  if (!secret || encoder.encode(secret).length < 32 || !configuredOrigin) return null;
   try {
-    const url = new URL(team.includes('://') ? team : `https://${team}`);
+    const url = new URL(configuredOrigin);
+    const local =
+      url.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
     if (
-      url.protocol !== 'https:' ||
+      (!local && url.protocol !== 'https:') ||
       url.username ||
       url.password ||
-      url.port ||
       url.pathname !== '/' ||
       url.search ||
-      url.hash ||
-      !/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.cloudflareaccess\.com$/i.test(url.hostname)
+      url.hash
     )
       return null;
-    return { issuer: url.origin, audience };
+    return { origin: url.origin, secret, secure: !local };
   } catch {
     return null;
   }
 }
+const hex = (bytes: ArrayBuffer) =>
+  Array.from(new Uint8Array(bytes), (value) => value.toString(16).padStart(2, '0')).join('');
+export async function tokenHash(token: string): Promise<string> {
+  return hex(await crypto.subtle.digest('SHA-256', encoder.encode(token)));
+}
+export function randomToken(): string {
+  return Array.from(crypto.getRandomValues(new Uint8Array(32)), (value) =>
+    value.toString(16).padStart(2, '0')
+  ).join('');
+}
+export async function keyedHash(value: string, secret: string): Promise<ArrayBuffer> {
+  const key = await crypto.subtle.importKey(
+    'raw',
+    encoder.encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  );
+  return crypto.subtle.sign('HMAC', key, encoder.encode(value));
+}
+export async function passwordHash(
+  password: string,
+  salt: string,
+  secret: string
+): Promise<string> {
+  const peppered = await keyedHash(`password:${password}`, secret);
+  const key = await crypto.subtle.importKey('raw', peppered, 'PBKDF2', false, ['deriveBits']);
+  return hex(
+    await crypto.subtle.deriveBits(
+      {
+        name: 'PBKDF2',
+        hash: 'SHA-256',
+        salt: encoder.encode(salt),
+        iterations: PASSWORD_ITERATIONS
+      },
+      key,
+      256
+    )
+  );
+}
+function equalHash(left: string, right: string): boolean {
+  if (!/^[a-f0-9]{64}$/.test(left) || !/^[a-f0-9]{64}$/.test(right)) return false;
+  return timingSafeEqual(encoder.encode(left), encoder.encode(right));
+}
 
-/** Verify an Access application JWT. Plain email headers and cookies prove no identity. */
-export async function getAccessUser(request: Request): Promise<AccessUser | null> {
-  const configuration = accessConfiguration();
-  const assertion = request.headers.get('Cf-Access-Jwt-Assertion');
-  if (!configuration || !assertion) return null;
+export function sessionCookie(
+  token: string,
+  configuration: AuthConfiguration,
+  clear = false
+): string {
+  return `${configuration.secure ? '__Host-family_session' : 'family_session'}=${clear ? '' : token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${clear ? 0 : SESSION_SECONDS}${configuration.secure ? '; Secure' : ''}`;
+}
+export function readSessionToken(
+  request: Request,
+  configuration: AuthConfiguration
+): string | null {
+  const name = configuration.secure ? '__Host-family_session' : 'family_session';
+  const tokens = (request.headers.get('Cookie') ?? '')
+    .split(';')
+    .map((part) => part.trim())
+    .filter((part) => part.startsWith(`${name}=`));
+  if (tokens.length !== 1) return null;
+  const token = tokens[0].slice(name.length + 1);
+  return /^[a-f0-9]{64}$/.test(token) ? token : null;
+}
+export const authUnavailable = () => json({ error: 'Authentication unavailable' }, 503);
+
+/** A hashed opaque session and current database role/status are checked on every request. */
+export async function requireAccess(
+  request: Request,
+  database?: FinanceDatabase
+): Promise<AuthUser | Response> {
+  const configuration = authConfiguration();
+  if (!configuration || !database) return authUnavailable();
+  const token = readSessionToken(request, configuration);
+  if (!token) return json({ error: 'Authentication required' }, 401);
   try {
-    let keys = signingKeys.get(configuration.issuer);
-    if (!keys) {
-      keys = createRemoteJWKSet(new URL('/cdn-cgi/access/certs', configuration.issuer), {
-        timeoutDuration: 5000,
-        cooldownDuration: 30000,
-        cacheMaxAge: 600000
-      });
-      // Configuration is trusted deployment input, but keep its public-key cache bounded.
-      if (signingKeys.size >= 4) signingKeys.clear();
-      signingKeys.set(configuration.issuer, keys);
-    }
-    const { payload } = await jwtVerify(assertion, keys, {
-      issuer: configuration.issuer,
-      audience: configuration.audience,
-      algorithms: ['RS256'],
-      requiredClaims: ['sub', 'exp', 'iat', 'email'],
-      clockTolerance: 5
-    });
-    if (
-      typeof payload.sub !== 'string' ||
-      !payload.sub.trim() ||
-      typeof payload.iat !== 'number' ||
-      !Number.isFinite(payload.iat) ||
-      typeof payload.exp !== 'number' ||
-      !Number.isFinite(payload.exp) ||
-      payload.iat > Date.now() / 1000 + 5 ||
-      payload.exp <= payload.iat ||
-      typeof payload['email'] !== 'string' ||
-      !/^[^\s@]+@[^\s@]+$/.test(payload['email'])
-    )
-      return null;
-    const email = payload['email'].trim().toLocaleLowerCase('en-US');
-    const fullName =
-      typeof payload['name'] === 'string' && payload['name'].trim() ? payload['name'].trim() : null;
-    return { email, displayName: fullName ?? email, fullName };
+    const result = await database
+      .prepare(
+        `SELECT u.id,u.email,u.name,u.role,u.status FROM auth_sessions s JOIN auth_users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>?`
+      )
+      .bind(await tokenHash(token), Math.floor(Date.now() / 1000))
+      .all<AuthUser & { status: string }>();
+    if (!result.success) return authUnavailable();
+    const user = result.results[0];
+    if (!user) return json({ error: 'Authentication required' }, 401);
+    if (user.status !== 'enabled' || !['member', 'admin'].includes(user.role))
+      return json({ error: 'Access denied' }, 403);
+    return { id: user.id, email: user.email, name: user.name, role: user.role };
   } catch {
-    // Unknown keys, network failures, bad signatures and invalid claims all fail closed.
-    return null;
+    return authUnavailable();
   }
 }
-
-const privateHeaders = { 'Cache-Control': 'private, no-store' };
-
-/** Shared origin guard; identity is verified on every protected request. */
-export async function requireAccess(request: Request): Promise<AccessUser | Response> {
-  const allowed = (process.env['ALLOWED_EMAILS'] ?? '')
-    .split(/[,;\n]/)
-    .map((email) => email.trim().toLocaleLowerCase('en-US'))
-    .filter(Boolean);
-  if (
-    !accessConfiguration() ||
-    !allowed.length ||
-    allowed.some((email) => !/^[^\s@]+@[^\s@]+$/.test(email))
-  )
-    return Response.json(
-      { error: 'Authentication is not configured' },
-      { status: 503, headers: privateHeaders }
-    );
-  const user = await getAccessUser(request);
-  if (!user)
-    return Response.json(
-      { error: 'Authentication required' },
-      { status: 401, headers: privateHeaders }
-    );
-  if (!allowed.includes(user.email))
-    return Response.json({ error: 'Access denied' }, { status: 403, headers: privateHeaders });
-  return user;
+export async function verifyPassword(
+  password: string,
+  salt: string,
+  hash: string,
+  secret: string
+): Promise<boolean> {
+  return equalHash(await passwordHash(password, salt, secret), hash);
 }
