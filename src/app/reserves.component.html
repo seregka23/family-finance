@@ -1,0 +1,172 @@
+@if (!data || data.unavailable) {
+  <section class="panel reserve-state" role="status">
+    <h2>Резервы временно недоступны</h2>
+    <p>Не удалось получить суммы. Обновите данные, чтобы увидеть актуальный остаток.</p>
+    <button class="refresh-button" (click)="onRefresh()">Повторить загрузку</button>
+  </section>
+} @else {
+  <div class="reserves-workspace">
+    <div class="reserve-intro">
+      <div>
+        <h2>Цели и резервы</h2>
+        <p>Отложенная часть денег на счёте. Остаток сохраняется между месяцами.</p>
+      </div>
+      <a
+        class="refresh-button"
+        href="https://app.notion.com/p/6f5e3d2ff27f4e4792ca9989dbce0632"
+        target="_blank"
+        rel="noreferrer"
+        >Управлять в Notion ↗</a
+      >
+    </div>
+    <div class="reserve-filters">
+      <label
+        >Счёт<select
+          aria-label="Счёт резерва"
+          [value]="accountId()"
+          (change)="changeAccount(eventValue($event))"
+        >
+          <option value="Все">Все счета</option>
+          @for (
+            account of accounts.filter((account) =>
+              data?.items?.some((goal) => goal.accountId === account.id)
+            );
+            track $index
+          ) {
+            <option [value]="account.id">{{ account.name }}</option>
+          }
+        </select></label
+      ><label class="reserve-checkbox"
+        ><input
+          type="checkbox"
+          [checked]="showArchived()"
+          (input)="changeArchived(eventChecked($event))"
+        />Показывать архив</label
+      >
+    </div>
+    @if (reserveAccounts().length > 0) {
+      <section class="reserve-account-strip" aria-label="Деньги на счетах с резервами">
+        @for (account of reserveAccounts(); track $index) {
+          <div>
+            <h3>{{ account.name }}</h3>
+            <dl>
+              <div>
+                <dt>Всего на счёте</dt>
+                <dd>{{ money(account.balance, account.currency) }}</dd>
+              </div>
+              <div>
+                <dt>В резерве</dt>
+                <dd>{{ money(account.reserved, account.currency) }}</dd>
+              </div>
+              <div>
+                <dt>Свободно</dt>
+                <dd
+                  [class]='account.available !== null &amp;&amp; account.available < 0 ? "warning" : "mint"'
+                >
+                  {{ money(account.available, account.currency) }}
+                </dd>
+              </div>
+            </dl>
+            @if (account.available !== null && account.available < 0) {
+              <p class="warning">
+                Резервы превышают баланс. Проверьте платежи или снимите часть резервирования.
+              </p>
+            }
+          </div>
+        }
+      </section>
+    }
+    @if (goals().length) {
+      <section class="reserve-list" aria-label="Список целей и резервов">
+        @for (goal of goals(); track $index) {
+          <app-reserve-row [goal]="goal" (history)="showHistory(goal.id)"></app-reserve-row>
+        }
+      </section>
+    } @else {
+      <section class="panel reserve-state">
+        <h3>
+          {{
+            data.items.length ? 'Нет резервов по выбранному фильтру' : 'Пока нет целей и резервов'
+          }}
+        </h3>
+        <p>
+          {{
+            data.items.length
+              ? 'Выберите другой счёт или включите архив.'
+              : 'Создайте резерв в Notion или попросите добавить его в чате.'
+          }}
+        </p>
+      </section>
+    }
+    <section class="panel reserve-history" id="reserve-history">
+      <div class="reserve-history-head">
+        <h2 id="reserve-history-heading" [attr.tabindex]="-1">История резервов</h2>
+        <label
+          ><span class="sr-only">Фильтр истории по резерву</span
+          ><select
+            aria-label="Фильтр истории по резерву"
+            [value]="selectedId()"
+            (change)="selectedId.set(eventValue($event)); limit.set(30)"
+          >
+            <option value="Все">Все резервы</option>
+            @for (goal of goals(); track $index) {
+              <option [value]="goal.id">{{ goal.title }} · {{ goal.currency }}</option>
+            }
+          </select></label
+        >
+      </div>
+      <p class="note">За всё время. Пополнения и снятие резервирования не входят в расходы.</p>
+      @if (data.historyUnavailable) {
+        <div class="reserve-state" role="status">
+          <b>Историю не удалось загрузить полностью</b>
+          <p>Суммы выше показаны отдельно. Обновите данные, чтобы повторить загрузку истории.</p>
+          <button class="refresh-button" (click)="onRefresh()">Повторить загрузку</button>
+        </div>
+      } @else {
+        @if (history().length) {
+          <ol>
+            @for (event of history().slice(0, limit()); track $index) {
+              <li>
+                <div>
+                  <strong>{{ event.type }}</strong
+                  ><span>{{ event.reserve }} · {{ event.account }}</span
+                  ><small>{{ operationDate(event.date) }}</small>
+                </div>
+                <div class="reserve-event-value">
+                  <strong [class]="event.type === 'Пополнение' ? 'mint' : ''"
+                    >{{
+                      event.type === 'Пополнение'
+                        ? '+'
+                        : event.type === 'Ожидает проверки'
+                          ? ''
+                          : '−'
+                    }}{{ money(event.amount, event.currency) }}</strong
+                  ><a
+                    [href]="event.notionUrl"
+                    target="_blank"
+                    rel="noreferrer"
+                    [attr.aria-label]="`Открыть ${event.title || event.type} в Notion`"
+                    >В Notion ↗</a
+                  >
+                  @if (event.type === 'Ожидает проверки') {
+                    <small>Резерв ещё не списан</small>
+                  }
+                </div>
+              </li>
+            }
+          </ol>
+          @if (history().length > limit()) {
+            <button class="refresh-button" (click)="limit.update((value) => value + 30)">
+              Показать ещё
+            </button>
+          }
+        } @else {
+          <div class="reserve-state">
+            <b>Движений пока нет</b>
+            <p>Здесь появятся пополнения, оплаты и снятие резервирования.</p>
+          </div>
+        }
+      }
+    </section>
+  </div>
+}
