@@ -17,7 +17,6 @@ const operation = (id: string, category: string, account: string) => ({
   status: 'Готово' as const,
   participant: 'Семья' as const,
   note: '',
-  notionUrl: 'https://notion.so/test'
 });
 
 export const fixtureData: FinanceData = {
@@ -50,11 +49,9 @@ export const fixtureData: FinanceData = {
         amount: 1000,
         actual: 200,
         currency: 'RSD',
-        notionUrl: 'https://notion.so/p'
       }
     ]
   },
   receipts: { items: [] },
-  goals: { items: [], history: [] },
-  viewer: { accountOwner: 'Муж' }
+  goals: { items: [], history: [] }
 };

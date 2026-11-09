@@ -2,8 +2,7 @@
 <div class="content enter">
   <app-page-head
     title="Операции"
-    text="Доходы и расходы из Notion за выбранный период."
-    [action]="true"
+    text="Доходы и расходы за выбранный период."
   />
   <div class="toolbar">
     <div class="date-filter">
@@ -136,7 +135,7 @@
             <span class="tile violet"><app-icon name="alert" /></span>
             <section>
               <b>Позиции временно недоступны</b>
-              <p>Notion не вернул базу позиций чеков.</p>
+              <p>Не удалось загрузить позиции чеков.</p>
             </section>
           </div>
         } @else {
@@ -150,26 +149,12 @@
                 [currency]="latestReceipt.currency"
               />
             }
-            <a
-              class="notion-section-link"
-              [href]="latestReceipt.notionUrl"
-              target="_blank"
-              rel="noreferrer"
-              >Открыть операцию в Notion <app-icon name="external" [size]="15"
-            /></a>
           } @else {
             <div class="receipt-state">
               <span class="tile mint"><app-icon name="receipt" /></span>
               <section>
                 <b>Позиции чеков ещё не добавлены</b>
-                <p>Добавьте товары и свяжите их с операцией в Notion.</p>
-                <a
-                  class="notion-section-link"
-                  [href]="notionReceiptItems"
-                  target="_blank"
-                  rel="noreferrer"
-                  >Открыть базу в Notion <app-icon name="external" [size]="15"
-                /></a>
+                <p>Здесь появятся позиции чеков.</p>
               </section>
             </div>
           }
@@ -183,7 +168,7 @@
           <p>
             {{
               vm.needsReview()
-                ? 'В Notion есть операции со статусом «Нужна проверка».'
+                ? 'Есть операции со статусом «Нужна проверка».'
                 : 'В выбранном периоде нет операций со статусом «Нужна проверка».'
             }}
           </p>

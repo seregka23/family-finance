@@ -23,7 +23,6 @@ export type MonthlyPlanItem = {
   amount: number;
   actual: number;
   currency: string;
-  notionUrl: string;
 };
 export type MonthlyPlan = { month: string; items: MonthlyPlanItem[]; unavailable?: boolean };
 export type ReceiptSummary = {
@@ -32,11 +31,9 @@ export type ReceiptSummary = {
   itemCount: number;
   total: number;
   currency: string;
-  notionUrl: string;
   categories: Array<{ name: string; amount: number; percent: number }>;
 };
 export type ReceiptData = { items: ReceiptSummary[]; unavailable?: boolean };
-export type ViewerData = { accountOwner: string | null };
 export type Operation = {
   id: string;
   operationType: 'Расход' | 'Доход';
@@ -54,7 +51,6 @@ export type Operation = {
   status: 'Готово' | 'Нужна проверка';
   participant: 'Я' | 'Семья';
   note: string;
-  notionUrl: string;
   isoDate: string;
   reserveName?: string;
   reserveAmount?: number;
@@ -67,7 +63,6 @@ export type FinanceData = {
   monthlyPlan?: MonthlyPlan;
   receipts?: ReceiptData;
   goals?: GoalsData;
-  viewer?: ViewerData;
   updatedAt?: string;
 };
 

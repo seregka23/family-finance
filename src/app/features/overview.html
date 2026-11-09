@@ -25,9 +25,6 @@
         ><span class="period-caption">{{ vm.period().from }}— {{ vm.period().to }}</span>
       </div>
     </div>
-    <a class="cta" [href]="notionOperations" target="_blank" rel="noreferrer"
-      ><b>＋</b>Добавить в Notion <app-icon name="external" [size]="17"
-    /></a>
   </section>
   @if (vm.state() === 'ready' && !monthlyPlan?.unavailable && vm.planTotals().length > 0) {
     <section class="monthly-command" aria-label="Бюджет текущего месяца">
@@ -152,7 +149,7 @@
         <p class="note">
           {{
             vm.state() === 'loading'
-              ? 'Загружаем счета из Notion…'
+              ? 'Загружаем счета…'
               : vm.state() === 'error'
                 ? 'Не удалось загрузить счета.'
                 : 'Подходящие счета не найдены.'
@@ -289,7 +286,7 @@
           <span class="tile mint"><app-icon name="target" /></span>
           <section>
             <b>Загружаем план…</b>
-            <p>Получаем статьи текущего месяца из Notion.</p>
+            <p>Получаем статьи текущего месяца.</p>
           </section>
         </div>
       } @else {
@@ -340,10 +337,7 @@
               <span class="tile mint"><app-icon name="target" /></span>
               <section>
                 <b>План ещё не заполнен</b>
-                <p>Добавьте статьи с суммами для текущего месяца.</p>
-                <a [href]="notionPlan" target="_blank" rel="noreferrer"
-                  >Заполнить в Notion <app-icon name="external" [size]="15"
-                /></a>
+                <p>План на текущий месяц пока пуст.</p>
               </section>
             </div>
           }

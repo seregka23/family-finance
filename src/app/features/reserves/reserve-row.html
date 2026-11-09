@@ -49,13 +49,6 @@
     }
   </div>
   <div class="reserve-row-actions">
-    <button (click)="history.emit()">История</button
-    ><a
-      [href]="goal.notionUrl"
-      target="_blank"
-      rel="noreferrer"
-      [attr.aria-label]="`Изменить резерв ${goal.title} в Notion`"
-      >В Notion ↗</a
-    >
+    <button (click)="history.emit()">История</button>
   </div>
 </article>

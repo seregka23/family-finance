@@ -43,7 +43,7 @@
     @if (status() === 'loading') {
       <section class="panel expense-state">
         <h2>Загружаем расходы месяца…</h2>
-        <p>Получаем все операции из Notion.</p>
+        <p>Получаем все операции.</p>
       </section>
     }
     @if (status() === 'error') {
@@ -57,7 +57,7 @@
       @if (data.excluded > 0) {
         <p class="expense-warning">
           Не включено операций с отсутствующей или некорректной суммой: {{ data.excluded }}.
-          Проверьте их в Notion.
+          Проверьте данные операций.
         </p>
       }
       @if (data.omittedByCategory > 0) {
@@ -68,7 +68,7 @@
       @if (!bucket) {
         <section class="panel expense-state">
           <h2>Расходов за этот месяц нет</h2>
-          <p>Выберите другой месяц или добавьте расходы в Notion.</p>
+          <p>Выберите другой месяц.</p>
         </section>
       } @else {
         <section class="expense-metrics" [attr.aria-label]="`Итоги расходов ${currency()}`">
@@ -112,7 +112,7 @@
             ><b
               >{{ bucket.days.filter((day) => day.count === 0).length }} из
               {{ bucket.days.length }}</b
-            ><small>По записям Notion в выбранной валюте</small>
+            ><small>По операциям в выбранной валюте</small>
           </article>
         </section>
         @if (bucket.review > 0 || currency() === 'Без валюты') {
@@ -255,7 +255,7 @@
             }
             @if (bucket.merchants.some((item) => item.name === 'Не указан')) {
               <p class="expense-caption">
-                «Не указан» — расходы без заполненного магазина в Notion; они включены в итог.
+                «Не указан» — расходы без указанного магазина; они включены в итог.
               </p>
             }
           </section>
@@ -294,20 +294,14 @@
         <section class="panel expense-largest">
           <h2>Крупнейшие расходы месяца</h2>
           <p class="expense-caption">
-            {{ periodLabel() }} · {{ currency() }} · До 10 операций по убыванию суммы. Нажмите,
-            чтобы открыть запись в Notion.
+            {{ periodLabel() }} · {{ currency() }} · До 10 операций по убыванию суммы.
           </p>
           <ol class="expense-purchases">
             @for (item of bucket.largest; track item.id; let index = $index) {
               <li>
                 <span class="expense-rank">{{ index + 1 }}</span>
                 <div>
-                  <a
-                    [href]="`https://www.notion.so/${encodeURIComponent(item.id.replaceAll('-', ''))}`"
-                    target="_blank"
-                    rel="noreferrer"
-                    >{{ item.title }}</a
-                  ><small
+                  <b>{{ item.title }}</b><small
                     >{{ dateLabel(item.date) }} · {{ item.merchant }} · {{ item.category }}</small
                   >
                 </div>
@@ -321,7 +315,7 @@
         </section>
       }
       <p class="expense-source">
-        Источник: <a [href]="sourceUrl" target="_blank" rel="noreferrer">операции Notion</a>·
+        Источник: операции ·
         Обновлено
         {{
           date(data.updatedAt).toLocaleString('ru-RU', {

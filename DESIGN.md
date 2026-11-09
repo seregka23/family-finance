@@ -20,4 +20,4 @@ Month budget summary first: actual, plan, remaining, progress per currency. Then
 - https://actualbudget.org/docs/tour/user-interface/
 
 ## Validation boundaries
-Financial data and authentication unchanged. Automated tests cover date boundaries, currency isolation, pagination and unauthenticated access. Live authenticated visual verification requires an allowed session; do not weaken access for screenshots.
+Authentication and the external database integration have been removed. The public interface starts with empty data. Automated checks cover date boundaries, currency isolation, anonymous SSR/API access and component interactions.

@@ -61,18 +61,8 @@ export class FinanceWorkspace {
   readonly monthlyPlan = computed(() => this.data()?.monthlyPlan ?? null);
   readonly receipts = computed(() => this.data()?.receipts ?? null);
   readonly goals = computed(() => this.data()?.goals ?? null);
-  readonly viewerOwner = computed(() => this.data()?.viewer?.accountOwner ?? null);
   readonly updatedAt = computed(() => this.data()?.updatedAt ?? null);
-  readonly errorMessage = computed(() => {
-    const error = this.request.error();
-    const status =
-      error && typeof error === 'object' && 'status' in error ? error.status : undefined;
-    return status === 401
-      ? 'Сессия завершилась. Войдите в аккаунт заново.'
-      : status === 403
-        ? 'У аккаунта нет доступа к данным.'
-        : 'Не удалось получить данные из Notion. Попробуйте ещё раз.';
-  });
+  readonly errorMessage = computed(() => 'Не удалось получить данные. Попробуйте ещё раз.');
   // Preserve a chosen filter if it is still present in the next successful response.
   readonly categoryFilter = linkedSignal<string[] | undefined, string>({
     source: () =>
@@ -157,35 +147,7 @@ export class FinanceWorkspace {
       }, {})
     ).sort((a, b) => compareAccountCurrencies(a.currency, b.currency));
   });
-  readonly raiffeisenRsdAccounts = computed(() => {
-    return this.accounts()
-      .filter((account) => {
-        const identity = `${account.name} ${account.bank}`.toLocaleLowerCase('ru');
-        return (
-          account.currency === 'RSD' &&
-          (identity.includes('raiffeisen') || identity.includes('райф'))
-        );
-      })
-      .slice(0, 2);
-  });
-  readonly viewerOwnerNormalized = computed(() => {
-    return this.viewerOwner()?.toLocaleLowerCase('ru') ?? '';
-  });
-  readonly viewerCashAccount = computed(() => {
-    return this.accounts().find((account) => {
-      const identity = `${account.name} ${account.kind}`.toLocaleLowerCase('ru');
-      if (!identity.includes('налич')) return false;
-      if (account.owner.toLocaleLowerCase('ru') === this.viewerOwnerNormalized()) return true;
-      if (this.viewerOwnerNormalized() === 'муж')
-        return identity.includes('сереж') || identity.includes('сергей');
-      if (this.viewerOwnerNormalized() === 'жена') return identity.includes('свет');
-      return false;
-    });
-  });
-  readonly overviewAccounts = computed(() => {
-    const cash = this.viewerCashAccount();
-    return [...this.raiffeisenRsdAccounts(), ...(cash ? [cash] : [])];
-  });
+  readonly overviewAccounts = computed(() => this.accounts().slice(0, 3));
   readonly filteredOperations = computed(() => {
     return this.operations().filter((item) => {
       const q = this.query().toLocaleLowerCase('ru').trim();

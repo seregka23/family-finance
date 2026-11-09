@@ -7,10 +7,10 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import {accessAudience, accessIssuer, createAccessFixture} from './access-fixtures.mjs';
+import { assertPublicRuntime, runtimeEnv } from './public-runtime.mjs';
 
 test(
-  'Cloudflare runtime serves SSR, assets and private APIs from the configured paths',
+  'Cloudflare runtime serves public SSR, assets and empty APIs',
   { timeout: 60000 },
   async () => {
     const reservation = createServer();
@@ -19,13 +19,11 @@ test(
     const { port } = reservation.address();
     await new Promise((resolve) => reservation.close(resolve));
     const temporary = await mkdtemp(join(tmpdir(), 'finance-worker-'));
-    const access = await createAccessFixture();
     const server = spawn(
       process.execPath,
       [
         'node_modules/wrangler/bin/wrangler.js',
         'dev',
-        'tests/fixtures/worker-access.mjs',
         '--local',
         '--ip',
         '127.0.0.1',
@@ -34,20 +32,12 @@ test(
         '--inspector-port',
         '0',
         '--var',
-        'ALLOWED_EMAILS:allowed@example.test',
-        '--var', `CF_ACCESS_TEAM_DOMAIN:${new URL(accessIssuer).hostname}`,
-        '--var', `CF_ACCESS_AUD:${accessAudience}`,
-        '--var', `ACCESS_TEST_JWKS:${JSON.stringify(access.jwks)}`,
-        '--var',
-        'NOTION_TOKEN:',
-        '--var',
         'SSR_ALLOWED_HOSTS:localhost,127.0.0.1'
       ],
       {
         cwd: new URL('../', import.meta.url),
         env: {
-          ...process.env,
-          NOTION_TOKEN: '',
+          ...runtimeEnv(),
           WRANGLER_SEND_METRICS: 'false',
           WRANGLER_LOG_PATH: join(temporary, 'wrangler.log'),
           XDG_CONFIG_HOME: join(temporary, 'config')
@@ -82,41 +72,11 @@ test(
         await delay(100);
       }
       assert.ok(ready, output);
-      const allowed = { 'Cf-Access-Jwt-Assertion': access.token() };
-      for (const path of ['/', '/operations', '/plan', '/accounts', '/dashboards']) {
-        const anonymous = await request(path);
-        assert.equal(anonymous.status, 401);
-        assert.equal(anonymous.headers.get('location'), null);
-        assert.equal(anonymous.headers.get('cache-control'), 'private, no-store');
-        assert.equal(
-          (await request(path, { 'Cf-Access-Jwt-Assertion': access.token('denied@example.test') })).status,
-          403
-        );
-        const response = await request(path, allowed);
-        assert.equal(response.status, 200, path);
-        assert.equal(response.headers.get('cache-control'), 'private, no-store');
-        assert.match(await response.text(), /ng-server-context="ssr"/);
-      }
-      for (const path of ['/api/operations', '/api/expenses?month=2026-08']) {
-        assert.equal((await request(path)).status, 401);
-        assert.equal(
-          (await request(path, { 'Cf-Access-Jwt-Assertion': access.token('denied@example.test') })).status,
-          403
-        );
-        const missingConfig = await request(path, allowed);
-        assert.equal(missingConfig.status, 503);
-        assert.equal(missingConfig.headers.get('cache-control'), 'private, no-store');
-      }
-      assert.equal((await request('/api/operations', { 'oai-authenticated-user-email':'allowed@example.test', 'Cf-Access-Authenticated-User-Email':'allowed@example.test' })).status, 401);
-      assert.equal((await request('/api/missing', allowed)).status, 404);
-      assert.equal((await request('/unknown', allowed)).status, 404);
-      assert.equal((await request('/signin-with-chatgpt')).headers.get('location'), '/');
-      assert.equal((await request('/signout-with-chatgpt')).headers.get('location'), '/cdn-cgi/access/logout');
-      assert.equal((await request('/callback')).status, 404);
+      await assertPublicRuntime(request);
       const font = await request('/fonts/geist-98bbbccb.woff2');
       assert.equal(font.status, 200);
       assert.ok((await font.arrayBuffer()).byteLength > 1000);
-      const html = await (await request('/', allowed)).text();
+      const html = await (await request('/')).text();
       const script = html.match(/<script[^>]+src="([^"]+\.js)"/);
       assert.ok(script, 'SSR must reference a browser script');
       assert.equal((await request(`/${script[1].replace(/^\//, '')}`)).status, 200);

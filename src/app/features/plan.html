@@ -8,9 +8,6 @@
       </h1>
       <p>Плановые суммы, фактические расходы и остаток по каждой статье.</p>
     </div>
-    <a class="cta" [href]="notionPlan" target="_blank" rel="noreferrer"
-      >Редактировать в Notion <app-icon name="external" [size]="17"
-    /></a>
   </section>
   @if (vm.state() === 'loading') {
     <article class="panel plan-page-state">
@@ -98,7 +95,7 @@
           <span class="tile mint"><app-icon name="target" /></span>
           <section>
             <b>План ещё не заполнен</b>
-            <p>Добавьте статьи с суммами для текущего месяца в Notion.</p>
+            <p>План на текущий месяц пока пуст.</p>
           </section>
         </article>
       }

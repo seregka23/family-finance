@@ -1,4 +1,4 @@
-// Dashboard contract: one Notion expense per id, debit amount in its own
+// Dashboard contract: one expense per id, debit amount in its own
 // currency, calendar days in Europe/Belgrade. No FX conversion or netting income.
 // Daily bars answer when spending happened; ranked category bars answer where.
 // Both share one zero-based, integer-minor-unit model and exact amount labels.

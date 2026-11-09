@@ -11,7 +11,6 @@ import {
   eventValue,
   groupedMoney,
   money,
-  notionReceiptItems,
   receiptItemCountLabel
 } from '../finance-format';
 
@@ -27,7 +26,6 @@ export class Operations {
   readonly groupedMoney = groupedMoney;
   readonly receiptItemCountLabel = receiptItemCountLabel;
   readonly categoryTone = categoryTone;
-  readonly notionReceiptItems = notionReceiptItems;
   readonly date = (value: string) => new Date(value);
   readonly eventValue = eventValue;
 }
