@@ -1,0 +1,12 @@
+<dl class="account-reserve-values">
+  <div>
+    <dt>В резерве</dt>
+    <dd>{{ money(account.reserved, account.currency) }}</dd>
+  </div>
+  <div>
+    <dt>Свободно</dt>
+    <dd [class]='account.available !== null &amp;&amp; account.available < 0 ? "warning" : "mint"'>
+      {{ money(account.available, account.currency) }}
+    </dd>
+  </div>
+</dl>

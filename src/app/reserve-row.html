@@ -1,0 +1,60 @@
+<article class="reserve-row">
+  <div class="reserve-row-heading">
+    <h3>{{ goal.title }}</h3>
+    <span>{{ goal.archived ? 'Архив' : goal.kind }}</span>
+    <p>{{ goal.account }} · {{ goal.currency }}</p>
+    @if (goal.deadline) {
+      <small>Срок: {{ operationDate(goal.deadline) }}</small>
+    }
+  </div>
+  <dl class="reserve-row-values">
+    <div>
+      <dt>В резерве</dt>
+      <dd [class]='goal.saved !== null &amp;&amp; goal.saved < 0 ? "warning" : ""'>
+        {{ money(goal.saved, goal.currency) }}
+      </dd>
+    </div>
+    <div>
+      <dt>Оплачено из резерва</dt>
+      <dd>{{ money(goal.spent, goal.currency) }}</dd>
+    </div>
+  </dl>
+  <div class="reserve-target">
+    @if (goal.target !== null) {
+      <span>Цель: {{ money(goal.target, goal.currency) }}</span>
+      @if (goal.progress !== null) {
+        <progress
+          [attr.aria-label]="`Накоплено на ${goal.title}`"
+          [value]="goal.progress"
+          [max]="100"
+        ></progress
+        ><small
+          >{{ goal.progress.toFixed(0) }}% · осталось
+          {{
+            money(goal.saved === null ? null : Math.max(0, goal.target - goal.saved), goal.currency)
+          }}</small
+        >
+      } @else {
+        <small>Не удалось рассчитать прогресс</small>
+      }
+    } @else {
+      <p>
+        {{
+          goal.kind === 'Пополняемый резерв'
+            ? 'Можно пополнять и использовать постоянно'
+            : 'Целевая сумма пока не задана'
+        }}
+      </p>
+    }
+  </div>
+  <div class="reserve-row-actions">
+    <button (click)="onHistory()">История</button
+    ><a
+      [href]="goal.notionUrl"
+      target="_blank"
+      rel="noreferrer"
+      [attr.aria-label]="`Изменить резерв ${goal.title} в Notion`"
+      >В Notion ↗</a
+    >
+  </div>
+</article>

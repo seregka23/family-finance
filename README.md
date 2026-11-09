@@ -1,12 +1,12 @@
 # Family Finance
 
-A private family finance dashboard built with Next.js 16 App Router, React 19,
-TypeScript, and Tailwind CSS 4. The server reads financial records from Notion;
-there is no local database. Dates and reporting periods use Europe/Belgrade.
+A private family finance dashboard built with Angular 22, server-side rendering,
+TypeScript, Tailwind CSS 4, and an Express Node server. The server reads financial
+records from Notion; there is no local database. Reporting dates use Europe/Belgrade.
 
 ## Development
 
-Use Node.js 22.13 or newer.
+Use Node.js 22.22.3 or newer (or the current Node.js 24 LTS).
 
 ```sh
 npm ci
@@ -14,65 +14,79 @@ cp .env.example .env.local
 npm run dev
 ```
 
-Open http://localhost:3000. Set `NOTION_TOKEN` to a Notion integration with access
-to the data sources described in [the data contract](docs/notion-data-contract.md).
-`ALLOWED_EMAILS` is a comma-separated email allowlist. `ACCOUNT_OWNER_BY_EMAIL`
-maps emails to account owners, for example `you@example.com=Муж`.
-Missing authentication or an empty allowlist denies access; missing Notion
-configuration returns a private 503 response from the APIs.
+Open http://localhost:4200 through the existing trusted authentication proxy.
+Set `NOTION_TOKEN` to a Notion integration with access to the data sources in
+[the data contract](docs/notion-data-contract.md). `ALLOWED_EMAILS` is a
+comma-separated email allowlist. `ACCOUNT_OWNER_BY_EMAIL` maps emails to account
+owners, for example `you@example.com=Муж`.
 
-## Authentication and deployment
+For development, export these variables in the shell before `npm run dev`.
+The production `npm start` command also loads `.env.local` if present. Never
+commit real credentials. Missing identity or an empty allowlist denies access;
+missing Notion configuration returns a private 503 response from the APIs.
 
-This migration preserves the existing trusted authentication proxy contract.
-The proxy must authenticate visitors, strip client-supplied `oai-authenticated-*`
-headers, and inject `oai-authenticated-user-email`. Optional full names use
-`oai-authenticated-user-full-name` with
+## Authentication and production
+
+The app preserves the existing trusted authentication proxy contract. The proxy
+must authenticate visitors, strip client-supplied `oai-authenticated-*` headers,
+and inject `oai-authenticated-user-email`. Optional names use
+`oai-authenticated-user-full-name` and
 `oai-authenticated-user-full-name-encoding: percent-encoded-utf-8`.
-The proxy also owns `/signin-with-chatgpt`, `/signout-with-chatgpt`, and `/callback`.
-Next.js does not implement these authentication endpoints.
-
-Run the server only behind that trusted proxy, with direct public access to the
-Node origin blocked. These identity headers are trusted input, not independently
-verified tokens. Do not expose the origin directly to the Internet. Local
-requests without the proxy redirect to sign-in; authenticated local testing can
-use the same headers against localhost only.
+The proxy owns `/signin-with-chatgpt`, `/signout-with-chatgpt`, and `/callback`.
+Direct requests to those endpoints return a configuration error rather than an
+Angular page.
 
 ```sh
 npm run build
 npm start
 ```
 
-`next start` serves the production build on port 3000; set `PORT` to change it.
-Configure the same environment variables on the server. The app uses native
-Next.js route handlers and server rendering, so static export is not supported.
-It no longer builds a Sites/Cloudflare Worker artifact and does not change the
-existing live Sites deployment.
+The production server listens on `127.0.0.1:4000` by default. `PORT` and `HOST`
+configure the listener. Deploy `dist/family-finance` as a complete directory so
+that `server/server.mjs` can serve the sibling `browser` assets. For a container,
+set `HOST=0.0.0.0` and restrict ingress to the trusted proxy.
 
-`next.config.ts` also enables a self-contained Node deployment. Copy the static
-assets alongside the generated server before running it:
+Keep direct public access to the Node origin blocked. Identity headers are
+trusted proxy input, not independently verified tokens. The SSR host allowlist
+in `angular.json` includes localhost, 127.0.0.1, and the existing Family Finance
+hostname; add an explicit hostname and rebuild when deploying at a new origin.
+Do not enable wildcard host trust or forward unchecked proxy headers.
 
-```sh
-cp -r public .next/standalone/public
-mkdir -p .next/standalone/.next
-cp -r .next/static .next/standalone/.next/static
-node .next/standalone/server.js
-```
+The Express server checks authentication and allowlisting before Angular SSR,
+serves the Notion APIs at `/api/operations` and `/api/expenses`, and marks private
+HTML and API responses `private, no-store`. Angular hydrates the server-rendered
+workspace and loads financial data through HttpClient after hydration. Request
+cancellation and timeouts prevent older responses from replacing a newer date
+selection. User-specific API responses are excluded from HTTP transfer caching.
 
-Fonts are served from `public/fonts` with their original Unicode subsets; builds
-and rendering do not depend on Google Fonts network access.
+The app retains the overview, operation filters and details, monthly plan,
+accounts, reserve balances and history, and expense charts and breakdowns.
+Fonts are local assets; no Google Fonts network access is needed.
+
+This repository builds Angular SSR for Node. It no longer emits a Sites Worker
+artifact. The existing live Sites deployment is unchanged by this migration.
 
 ## Checks
 
-- `npm test`: production build, model/API/component tests, and a real Next.js
-  production-server smoke test for redirects, allowlisting, API status codes,
-  private caching, and local fonts. No live Notion credentials are needed.
-- `npm run test:unit`: model, API, and component tests without a build.
-- `npm run typecheck`: generate Next.js route types and check TypeScript.
-- `npm run lint`: run ESLint.
+- `npm test`: production Angular build, model/API tests, real SSR-server smoke
+  test, and native Angular component interaction tests.
+- `npm run test:unit`: model and API tests without a build.
+- `npm run typecheck`: strict TypeScript checking.
+- `npx ng test --watch=false`: Angular component tests with Vitest and jsdom.
 
-## Project layout
+Tests use fixtures, not live Notion credentials. The production smoke test checks
+anonymous redirects, denied and allowed identities, actual SSR HTML, private API
+responses, and font serving. Component tests cover filtering, operation details,
+plans, account totals, request cancellation, chart modes, merchant expansion,
+HTML escaping, and reserve/history filtering.
 
-- `app/`: dashboard, finance models, authentication helpers, and API routes.
+## Layout
+
+- `src/app/`: standalone Angular components, signals, HttpClient service, and models.
+- `src/server/`: trusted proxy authentication, access control, and Notion APIs.
+- `src/server.ts`: Express server and Angular SSR adapter.
+- `public/`: fonts, favicon, and other static assets.
 - `docs/`: finance data contracts and feature documentation.
-- `tests/`: model, API, rendering, and production-runtime tests.
+- `tests/`: finance model, API, and production-server tests.
+- `.agents/skills/`: installed Angular development skills.
 - `.codex/`: shared Codex configuration and agent definitions.
