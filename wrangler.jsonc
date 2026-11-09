@@ -3,7 +3,9 @@
   "name": "family-finance",
   "main": "worker/index.mjs",
   "compatibility_date": "2026-11-09",
-  "compatibility_flags": ["nodejs_compat"],
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
   "keep_vars": true,
   "assets": {
     "directory": "dist/family-finance-worker/browser",
@@ -28,5 +30,13 @@
     }
   },
   "workers_dev": true,
-  "preview_urls": false
+  "preview_urls": false,
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "family-finance",
+      "database_id": "813be64c-d2eb-45c6-a2a0-83806f1eb85b",
+      "migrations_dir": "migrations"
+    }
+  ]
 }

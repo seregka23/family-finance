@@ -1,7 +1,7 @@
 # Monthly expense dashboard
 
-The public `/api/expenses?month=YYYY-MM` endpoint returns a valid empty monthly
-report without consulting an external database. Invalid month inputs return 400.
+The public `/api/expenses?month=YYYY-MM` endpoint reads expense operations and
+category report flags from D1 and aggregates a monthly report. Invalid month inputs return 400.
 Calendar dates use Europe/Belgrade; currencies remain separate.
 
 The UI retains daily and cumulative expenses, merchant and category breakdowns,

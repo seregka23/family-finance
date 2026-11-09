@@ -15,7 +15,15 @@
     "deploy": "npm run build:worker && wrangler deploy",
     "preview": "npm run build:worker && wrangler dev",
     "cf:typegen": "wrangler types",
-    "deploy:check": "wrangler deploy --dry-run"
+    "deploy:check": "wrangler deploy --dry-run",
+    "db:migrate:local": "wrangler d1 migrations apply DB --local",
+    "db:migrate:remote": "wrangler d1 migrations apply DB --remote",
+    "db:execute:local": "wrangler d1 execute DB --local",
+    "db:execute:remote": "wrangler d1 execute DB --remote",
+    "prebuild:node": "npm run cf:typegen",
+    "prebuild:worker": "npm run cf:typegen",
+    "pretypecheck": "npm run cf:typegen",
+    "predev": "npm run cf:typegen"
   },
   "private": true,
   "packageManager": "npm@11.9.0",
