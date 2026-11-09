@@ -1,5 +1,7 @@
+import { HttpErrorResponse } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
+import { provideRouter } from '@angular/router';
 import { FinanceApi } from '../../finance-api';
 import { aggregateExpenses } from '../../models/expense-model';
 import { Expenses } from './expenses';
@@ -22,7 +24,7 @@ const data = aggregateExpenses(
 describe('Expense dashboards', () => {
   beforeEach(() =>
     TestBed.configureTestingModule({
-      providers: [{ provide: FinanceApi, useValue: { expenses: () => of(data) } }]
+      providers: [provideRouter([]), { provide: FinanceApi, useValue: { expenses: () => of(data) } }]
     })
   );
   it('renders escaped top ten purchases, both chart modes, merchant sorting and expansion', async () => {
@@ -49,4 +51,15 @@ describe('Expense dashboards', () => {
     await fixture.whenStable();
     expect(host.textContent).toContain('средняя сумма');
   });
+  it.each([401, 403] as const)('shows the appropriate recovery link for authentication failure %s', async (status) => {
+    TestBed.overrideProvider(FinanceApi, { useValue: { expenses: () => throwError(() => new HttpErrorResponse({ status })) } });
+    const fixture = TestBed.createComponent(Expenses);
+    await fixture.whenStable();
+    const host: HTMLElement = fixture.nativeElement;
+    expect(fixture.componentInstance.authError()).toBe(status);
+    const link = host.querySelector<HTMLAnchorElement>('.auth-link');
+    expect(link?.getAttribute('href')).toBe(status === 401 ? '/auth/login?return_to=%2F' : '/auth/logout');
+    expect(host.querySelectorAll('.expense-rank')).toHaveLength(0);
+  });
+
 });

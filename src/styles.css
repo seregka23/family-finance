@@ -4127,3 +4127,25 @@ dd {
 /* Keep source links and secondary balances accessible in the SSR port. */
 .account-summary em { color: var(--muted); }
 .expense-source a { text-decoration: underline; text-underline-offset: 3px; }
+
+/* Account access controls */
+.signout {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  white-space: nowrap;
+  justify-self: end;
+  color: var(--muted);
+  padding: 10px 12px;
+  border-radius: 8px;
+  text-decoration: none;
+}
+.signout:hover, .auth-link:hover { color: var(--mint); }
+.signout:focus-visible, .auth-link:focus-visible { outline: 2px solid var(--mint); outline-offset: 2px; }
+.auth-link { display: inline-block; color: var(--mint); padding: 10px 0; }
+@media (min-width: 1101px) {
+  .dashboard > header .signout { margin-top: auto; align-self: start; }
+}
+@media (min-width: 701px) and (max-width: 900px) {
+  .dashboard > header { grid-template-columns: 1fr auto auto; }
+}

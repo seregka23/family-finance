@@ -1,15 +1,15 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { loadTs } from './load-ts.mjs';
+import { loadAuthenticated as loadTs, authorizedRequest } from './auth-test-context.mjs';
 import { localD1 } from './d1-fixture.mjs';
 const { GET } = await loadTs('../src/server/api/operations.ts');
 
-test('public operations endpoint returns empty typed collections without outbound requests', async () => {
+test('authenticated operations endpoint returns empty typed collections without outbound requests', async () => {
   const fixture = localD1();
   const originalFetch = globalThis.fetch;
   let calls = 0;
   globalThis.fetch = async () => { calls++; throw new Error('Unexpected outbound request'); };
-  const request = (query = '') => new Request(`https://example.test/api/operations${query}`);
+  const request = (query = '') => authorizedRequest(`https://example.test/api/operations${query}`);
   try {
     const response = await GET(request('?from=2026-08-01&to=2026-08-31&month=2026-08-01'), fixture.db);
     assert.equal(response.status, 200);

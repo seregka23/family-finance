@@ -1,52 +1,49 @@
-# Cloudflare D1 finance storage
+# Restore authentication for D1 finance
 
 ## Task
 
-Use Cloudflare D1 (SQLite) as the application's database. This replaces the empty
-API implementation from merged PR #8. Authentication remains removed.
+Add authentication to the existing D1-backed Family Finance application. Use the
+previously selected Cloudflare Access provider and confirmed allowed email
+`seregka23@gmail.com`. Preserve the D1 database, schema and financial behavior.
 
 ## Acceptance criteria
 
-- Provision a dedicated D1 database and configure the Worker binding using its
-  real identifier, with reproducible, additive SQL migrations.
-- Store accounts, categories, operations, monthly plans, receipt items, reserves
-  and reserve history. Use integer minor units, foreign keys and useful indexes.
-- Read stored data through the existing public operations and expense APIs,
-  preserving payload shapes, date filters, currency isolation and finance totals.
-- Use prepared/bound queries and request-scoped D1 bindings; never expose a
-  general SQL endpoint or add unauthenticated write endpoints.
-- Distinguish an empty database from a missing binding or failed query (503).
-- Provide local migration and SQL commands, production migration instructions,
-  and tests against actual local D1 with synthetic records only.
-- Verify both production builds, TypeScript, API/domain/runtime tests and review.
+- Verify signed Access identities for workspace pages and both finance APIs,
+  checking issuer, audience, signature, expiry, subject and signed email.
+- Enforce the configured email allowlist; ignore spoofed email headers/cookies.
+- Missing configuration fails closed (503), missing/invalid identity returns 401,
+  denied verified users receive 403. Authenticate before validation or D1 queries.
+- Add working Access login/logout routes and accessible sign-out controls;
+  recover from expired/denied sessions without exposing old finance totals.
+- Preserve D1 reads and precision safeguards, without schema/data changes or a
+  local authentication bypass.
+- Update configuration/docs and signed-identity API/Node/Worker/Angular tests;
+  pass both builds, TypeScript, deployment checks and final review.
 
 ## Status
 
-Implementation complete and reviewed without blocking findings.
-
-Provisioned `family-finance` D1 in EEUR, identifier
-`813be64c-d2eb-45c6-a2a0-83806f1eb85b`. Applied `0001_finance.sql` to this new
-empty database through the connected Cloudflare API and recorded it in Wrangler's
-`d1_migrations` table. Verified seven finance tables, zero financial records,
-no foreign-key violations, and successful execution of all seven actual
-application read queries against the remote schema. Existing databases and
-financial records were untouched; no production sample data was inserted.
+Source implementation is complete and read-only review has no blocking findings.
 
 Validation:
 
-- `npm test`: both production builds; 23 Node/model/API/runtime tests and
-  11 Angular component tests passed.
-- Real local D1 migration, seed and restart tests demonstrate persisted data;
-  synthetic fixtures cover more than 100 operations, date/currency isolation,
-  plan actuals, receipts, accounts, reserves, constraints and error handling.
-- Regression tests cover precise monetary conversion, reporting boundaries,
-  oversized totals and derived balance overflow.
+- `npm test`: both production builds, 27 Node/model/API/runtime tests and
+  17 Angular tests passed (44 total).
+- Signed RSA/JWT tests cover signatures, claims, email allowlisting, spoofed
+  identity headers/cookies, configuration errors and denial before D1 access.
+- Node and real local D1 Worker smoke tests cover authenticated pages/APIs,
+  denied identities and persisted finance data.
+- UI regression tests open an operation dialog, trigger 401/403, and verify old
+  details disappear and do not return after recovery.
 - Strict TypeScript, generated binding types and whitespace checks passed.
-- Wrangler deployment dry run passed with the real `DB` binding and 28 assets
-  (1173.45 KiB module upload, 271.92 KiB gzip).
+- Wrangler deployment dry run passed with D1 and the confirmed email allowlist:
+  28 browser assets, 1211.52 KiB module (281.03 KiB gzip).
+- Adding `jose` completed without install warnings.
 
-The Worker code and binding become live after PR merge and the existing deployment
-pipeline succeeds. No Worker deployment was performed in this task. Node SSR is
-still supported, with finance API 503 responses when no D1 binding is available;
-use Wrangler for database-backed local development. The public application
-remains read-only; records are managed through authenticated SQL tooling.
+Live activation remains pending: Cloudflare reports Access is not enabled for
+this account. The user was asked to complete onboarding and provide the team
+domain. The application AUD tag must also be set in Worker runtime settings.
+The checked-in allowlist contains `seregka23@gmail.com`. Until setup is complete,
+protected routes fail closed. No live configuration, Worker deployment, D1 schema
+or financial data was changed during this task. After source merge/deployment
+and account setup, verify the live Access sign-in, allowed-user data and logout.
+The overall live-authentication task is not yet closed.

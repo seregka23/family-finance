@@ -8,11 +8,11 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import { assertPublicRuntime, runtimeEnv } from './public-runtime.mjs';
+import { assertProtectedRuntime, runtimeEnv, runtimeAccess } from './public-runtime.mjs';
 import { seedSql, assertPopulatedOperations } from './d1-seed.mjs';
 
 test(
-  'Cloudflare D1 persists migrated data across Worker restarts and serves public SSR',
+  'Cloudflare D1 persists migrated data across Worker restarts and protects SSR with Access',
   { timeout: 180000 },
   async () => {
     const reservation = createServer();
@@ -30,6 +30,7 @@ test(
       [
         'node_modules/wrangler/bin/wrangler.js',
         'dev',
+        'tests/fixtures/worker-access.mjs',
         '--local',
         '--persist-to', persist,
         '--ip',
@@ -39,7 +40,11 @@ test(
         '--inspector-port',
         '0',
         '--var',
-        'SSR_ALLOWED_HOSTS:localhost,127.0.0.1'
+        'SSR_ALLOWED_HOSTS:localhost,127.0.0.1',
+        '--var', `CF_ACCESS_TEAM_DOMAIN:${runtimeEnv().CF_ACCESS_TEAM_DOMAIN}`,
+        '--var', `CF_ACCESS_AUD:${runtimeEnv().CF_ACCESS_AUD}`,
+        '--var', 'ALLOWED_EMAILS:allowed@example.test',
+        '--var', `ACCESS_TEST_JWKS:${runtimeEnv().ACCESS_TEST_JWKS}`
       ],
       {
         cwd: new URL('../', import.meta.url),
@@ -80,7 +85,8 @@ test(
         await delay(100);
       }
       assert.ok(ready, output);
-      await assertPublicRuntime(request);
+      await assertProtectedRuntime(request);
+      const allowedRequest = (path) => request(path, { 'Cf-Access-Jwt-Assertion': runtimeAccess.token() });
       const seed = join(temporary, 'seed.sql');
       await writeFile(seed, seedSql());
       const stopped = once(server, 'exit');
@@ -93,27 +99,27 @@ test(
       let populated;
       for (let attempt = 0; attempt < 200; attempt++) {
         try {
-          const response = await request('/api/operations?from=2026-08-05&to=2026-08-05&month=2026-08-01');
+          const response = await allowedRequest('/api/operations?from=2026-08-05&to=2026-08-05&month=2026-08-01');
           if (response.ok) { populated = await response.json(); break; }
         } catch {}
         await delay(100);
       }
       assert.ok(populated, output);
       await assertPopulatedOperations(assert, populated);
-      const expenses = await (await request('/api/expenses?month=2026-08')).json();
+      const expenses = await (await allowedRequest('/api/expenses?month=2026-08')).json();
       assert.equal(expenses.currencies.find((item) => item.currency === 'RSD').total, 4.73);
       assert.equal(expenses.currencies.find((item) => item.currency === 'EUR').total, 9.99);
-      const receiptData = await (await request('/api/operations?from=2026-08-20&to=2026-08-20&month=2026-08-01')).json();
+      const receiptData = await (await allowedRequest('/api/operations?from=2026-08-20&to=2026-08-20&month=2026-08-01')).json();
       assert.equal(receiptData.receipts.items[0].itemCount, 2);
       assert.equal(receiptData.receipts.items[0].total, 3);
 
-      const font = await request('/fonts/geist-98bbbccb.woff2');
+      const font = await allowedRequest('/fonts/geist-98bbbccb.woff2');
       assert.equal(font.status, 200);
       assert.ok((await font.arrayBuffer()).byteLength > 1000);
-      const html = await (await request('/')).text();
+      const html = await (await allowedRequest('/')).text();
       const script = html.match(/<script[^>]+src="([^"]+\.js)"/);
       assert.ok(script, 'SSR must reference a browser script');
-      assert.equal((await request(`/${script[1].replace(/^\//, '')}`)).status, 200);
+      assert.equal((await allowedRequest(`/${script[1].replace(/^\//, '')}`)).status, 200);
     } finally {
       if (server.exitCode === null) {
         const exited = once(server, 'exit');

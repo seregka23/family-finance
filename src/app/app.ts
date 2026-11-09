@@ -11,6 +11,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { filter, map } from 'rxjs';
 import { FinanceWorkspace } from './finance-workspace';
+import { loginUrl } from './auth-errors';
 import { OperationDetails } from './operation-details';
 import { UiIcon } from './shared/ui-icon';
 
@@ -32,6 +33,7 @@ export class App {
     ),
     { initialValue: this.router.url }
   );
+  protected readonly loginUrl = computed(() => loginUrl(this.url()));
   protected readonly showStatus = computed(() => !this.url().startsWith('/dashboards'));
   protected readonly updatedLabel = computed(() => {
     const updated = this.vm.updatedAt();

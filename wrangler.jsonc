@@ -16,7 +16,8 @@
       "/plan",
       "/accounts",
       "/dashboards",
-      "/api/*"
+      "/api/*",
+      "/auth/*"
     ]
   },
   "observability": {
@@ -38,5 +39,8 @@
       "database_id": "813be64c-d2eb-45c6-a2a0-83806f1eb85b",
       "migrations_dir": "migrations"
     }
-  ]
+  ],
+  "vars": {
+    "ALLOWED_EMAILS": "seregka23@gmail.com"
+  }
 }

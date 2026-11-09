@@ -1,3 +1,4 @@
+import { requireAccess } from '../auth';
 import { aggregateExpenses, monthBounds } from '../../app/models/expense-model';
 import {
   amount,
@@ -10,6 +11,8 @@ import {
 } from '../database';
 
 export async function GET(request: Request, database?: FinanceDatabase) {
+  const access = await requireAccess(request);
+  if (access instanceof Response) return access;
   const month = new URL(request.url).searchParams.get('month') ?? '';
   let bounds;
   try {

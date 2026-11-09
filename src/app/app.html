@@ -25,6 +25,7 @@
           </button>
         }
       </nav>
+      <a class="signout" href="/auth/logout">Выйти</a>
       <button
         class="menu"
         type="button"
@@ -67,6 +68,11 @@
                 {{ vm.errorMessage() }} Старые итоги скрыты, чтобы не показывать неверные суммы.
               </p>
             </div>
+            @if (vm.authError() === 401) {
+              <a [href]="loginUrl()">Войти снова</a>
+            } @else if (vm.authError() === 403) {
+              <a href="/auth/logout">Войти с другим аккаунтом</a>
+            }
           </section>
         }
       }

@@ -1,6 +1,8 @@
 import { afterNextRender, Component, computed, inject, linkedSignal, signal } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
+import { Router } from '@angular/router';
 import { AppClock } from '../../app-clock';
+import { authErrorStatus, loginUrl } from '../../auth-errors';
 import { FinanceApi } from '../../finance-api';
 import { money as amountLabel, eventValue } from '../../finance-format';
 import { belgradeDay } from '../../models/expense-model';
@@ -16,6 +18,7 @@ const dateLabel = (date: string) =>
 export class Expenses {
   private readonly clock = inject(AppClock);
   private readonly api = inject(FinanceApi);
+  private readonly router = inject(Router);
   private readonly browserReady = signal(false);
   readonly currentMonth = belgradeDay(this.clock.now).slice(0, 7);
   readonly month = signal(this.currentMonth);
@@ -37,6 +40,8 @@ export class Expenses {
           ? 'ready'
           : 'loading'
   );
+  readonly authError = computed(() => authErrorStatus(this.request.error()));
+  readonly loginUrl = computed(() => loginUrl(this.router.url));
   readonly data = computed(() =>
     this.status() === 'ready' && this.request.hasValue() ? this.request.value() : null
   );

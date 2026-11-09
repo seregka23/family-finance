@@ -3,12 +3,12 @@ import test from 'node:test';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { loadTs } from './load-ts.mjs';
+import { loadAuthenticated as loadTs, authorizedRequest } from './auth-test-context.mjs';
 import { localD1 } from './d1-fixture.mjs';
 import { seedSql, assertPopulatedOperations } from './d1-seed.mjs';
 const { GET: operations } = await loadTs('../src/server/api/operations.ts');
 const { GET: expenses } = await loadTs('../src/server/api/expenses.ts');
-const request = (path) => new Request(`https://example.test/api/${path}`);
+const request = (path) => authorizedRequest(`https://example.test/api/${path}`);
 
 test('real migrated SQLite data persists and drives journal, balances, plans, receipts and expenses', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'finance-d1-unit-'));

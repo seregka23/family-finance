@@ -4,11 +4,11 @@ import { once } from 'node:events';
 import { createServer } from 'node:net';
 import { setTimeout as delay } from 'node:timers/promises';
 import test from 'node:test';
-import { assertPublicRuntime, runtimeEnv } from './public-runtime.mjs';
+import { assertProtectedRuntime, runtimeEnv, runtimeAccess } from './public-runtime.mjs';
 
 // Exercise the real Angular SSR production runtime without identity or database configuration.
 test(
-  'production Angular SSR serves public pages and unavailable D1 APIs without a binding',
+  'production Angular SSR serves authenticated pages and unavailable D1 APIs without a binding',
   { timeout: 60000 },
   async () => {
     const reservation = createServer();
@@ -16,7 +16,7 @@ test(
     await once(reservation, 'listening');
     const { port } = reservation.address();
     await new Promise((resolve) => reservation.close(resolve));
-    const server = spawn(process.execPath, ['dist/family-finance/server/server.mjs'], {
+    const server = spawn(process.execPath, ['--import', new URL('./fixtures/node-access-fetch.mjs', import.meta.url).href, 'dist/family-finance/server/server.mjs'], {
       cwd: new URL('../', import.meta.url),
       env: {
         ...runtimeEnv(),
@@ -48,7 +48,7 @@ test(
         }
       }
       assert.ok(ready, `Angular SSR did not start: ${output}`);
-      await assertPublicRuntime(request, 503);
+      await assertProtectedRuntime(request, 503);
       const font = await request('/fonts/geist-98bbbccb.woff2');
       assert.equal(font.status, 200);
       assert.ok((await font.arrayBuffer()).byteLength > 1000);
