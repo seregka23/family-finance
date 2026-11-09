@@ -78,6 +78,19 @@ describe('Finance resource and dependent filters', () => {
     expect(workspace.categoryFilter()).toBe('Все');
     expect(workspace.operationAccountFilter()).toBe('Все');
   });
+  it('treats an empty public workspace as ready without a viewer or external data', async () => {
+    const fixture = TestBed.createComponent(Host);
+    await vi.waitFor(() => expect(requests).toHaveLength(1));
+    requests[0].next({
+      operations: [], accounts: [], monthlyPlan: { month: '2026-11-01', items: [] },
+      receipts: { items: [] }, goals: { items: [], history: [] }
+    });
+    await fixture.whenStable();
+    const workspace = fixture.componentInstance.workspace;
+    expect(workspace.state()).toBe('ready');
+    expect(workspace.operations()).toHaveLength(0);
+    expect(workspace.accountSummaries()).toHaveLength(0);
+  });
   it('fails closed on an incomplete API payload', async () => {
     const fixture = TestBed.createComponent(Host);
     await vi.waitFor(() => expect(requests).toHaveLength(1));

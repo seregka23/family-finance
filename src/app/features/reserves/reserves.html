@@ -12,13 +12,6 @@
         <h2>Цели и резервы</h2>
         <p>Отложенная часть денег на счёте. Остаток сохраняется между месяцами.</p>
       </div>
-      <a
-        class="refresh-button"
-        href="https://app.notion.com/p/6f5e3d2ff27f4e4792ca9989dbce0632"
-        target="_blank"
-        rel="noreferrer"
-        >Управлять в Notion ↗</a
-      >
     </div>
     <div class="reserve-filters">
       <label
@@ -89,7 +82,7 @@
           {{
             data.items.length
               ? 'Выберите другой счёт или включите архив.'
-              : 'Создайте резерв в Notion или попросите добавить его в чате.'
+              : 'Здесь появятся цели и резервы.'
           }}
         </p>
       </section>
@@ -137,12 +130,6 @@
                           ? ''
                           : '−'
                     }}{{ money(event.amount, event.currency) }}</strong
-                  ><a
-                    [href]="event.notionUrl"
-                    target="_blank"
-                    rel="noreferrer"
-                    [attr.aria-label]="`Открыть ${event.title || event.type} в Notion`"
-                    >В Notion ↗</a
                   >
                   @if (event.type === 'Ожидает проверки') {
                     <small>Резерв ещё не списан</small>

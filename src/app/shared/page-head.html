@@ -3,9 +3,4 @@
     <h1 [attr.tabindex]="-1">{{ title() }}</h1>
     <p>{{ text() }}</p>
   </div>
-  @if (action()) {
-    <a class="cta" [href]="notionOperations" target="_blank" rel="noreferrer"
-      ><b>＋</b>Добавить в Notion <app-icon name="external" [size]="17"
-    /></a>
-  }
 </section>

@@ -13,8 +13,6 @@ import {
   groupedMoney,
   money,
   monthName,
-  notionOperations,
-  notionPlan,
   shortPlanTitle
 } from '../finance-format';
 import { countLabel, currentMonthStart } from '../models/finance-ui-model';
@@ -34,8 +32,6 @@ export class Overview {
   readonly categoryTone = categoryTone;
   readonly countLabel = countLabel;
   readonly currentMonthStart = currentMonthStart;
-  readonly notionOperations = notionOperations;
-  readonly notionPlan = notionPlan;
   readonly Math = Math;
   readonly date = (value: string) => new Date(value);
   readonly eventValue = eventValue;

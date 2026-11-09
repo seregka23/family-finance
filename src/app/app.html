@@ -24,15 +24,7 @@
             ><span class="nav-label">{{ item.label }}</span>
           </button>
         }
-        <a class="mobile-signout" href="/signout-with-chatgpt?return_to=/">Выйти из аккаунта</a>
       </nav>
-      <a
-        class="profile"
-        href="/signout-with-chatgpt?return_to=/"
-        aria-label="Выйти из аккаунта"
-        title="Выйти"
-        ><app-icon name="external" [size]="19"
-      /></a>
       <button
         class="menu"
         type="button"
@@ -50,10 +42,10 @@
           <span role="status"
             ><app-icon name="database" [size]="17" />{{
               vm.state() === 'loading'
-                ? 'Загружаем данные из Notion…'
+                ? 'Загружаем данные…'
                 : vm.state() === 'error'
                   ? 'Данные не обновлены'
-                  : 'Notion · обновлено ' + updatedLabel() + ' · Белград'
+                  : 'Обновлено ' + updatedLabel() + ' · Белград'
             }}</span
           >
           <button
@@ -75,9 +67,6 @@
                 {{ vm.errorMessage() }} Старые итоги скрыты, чтобы не показывать неверные суммы.
               </p>
             </div>
-            @if (vm.errorMessage().includes('аккаунт')) {
-              <a href="/signin-with-chatgpt?return_to=/">Войти заново</a>
-            }
           </section>
         }
       }

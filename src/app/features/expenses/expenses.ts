@@ -96,7 +96,6 @@ export class Expenses {
   });
   protected readonly amountLabel = amountLabel;
   protected readonly dateLabel = dateLabel;
-  protected readonly sourceUrl = 'https://app.notion.com/p/cea34bd95bb844edb69b911a129b2fc7';
   protected readonly Math = Math;
   protected readonly Number = Number;
   protected readonly encodeURIComponent = encodeURIComponent;

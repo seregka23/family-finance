@@ -19,7 +19,6 @@ const data: GoalsData = {
       spent: 100,
       progress: null,
       deadline: '',
-      notionUrl: 'https://notion.so/goal'
     },
     {
       id: 'archived',
@@ -36,7 +35,6 @@ const data: GoalsData = {
       spent: 0,
       progress: 20,
       deadline: '',
-      notionUrl: 'https://notion.so/other'
     }
   ],
   history: [
@@ -50,7 +48,6 @@ const data: GoalsData = {
       amount: 300,
       date: '2026-08-05',
       title: 'Резерв',
-      notionUrl: 'https://notion.so/e'
     }
   ]
 };

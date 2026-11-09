@@ -1,8 +1,4 @@
 import type { Operation } from './finance-types';
-export const notionOperations = 'https://app.notion.com/p/cea34bd95bb844edb69b911a129b2fc7';
-export const notionPlan = 'https://app.notion.com/p/56f21d527b044920a7b513902c777b48';
-export const notionReceiptItems = 'https://app.notion.com/p/b0d2c33e97fc4735bde63018a7789a64';
-export const notionGoals = 'https://app.notion.com/p/6f5e3d2ff27f4e4792ca9989dbce0632';
 export function money(value: number | null, currency = 'RSD') {
   if (value === null) return 'Нет данных';
   return `${new Intl.NumberFormat('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value)} ${currency}`;
