@@ -1,0 +1,11 @@
+<div class="category">
+  <div>
+    <span><i [class]="tone()"></i>{{ name() }}</span
+    ><b>{{ amount() }}</b>
+  </div>
+  <div class="bar"><i [class]="tone()" [style.width]="`${percent()}%`"></i></div>
+  <small
+    >{{ countLabel(count(), ['операция', 'операции', 'операций']) }}· {{ percent().toFixed(1) }}%
+    операций</small
+  >
+</div>

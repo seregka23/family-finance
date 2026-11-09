@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
-import { Reserves } from './reserves.component';
-import type { GoalsData } from './models/reserve-model';
+import type { GoalsData } from '../../models/reserve-model';
+import { Reserves } from './reserves';
 
 const data: GoalsData = {
   items: [

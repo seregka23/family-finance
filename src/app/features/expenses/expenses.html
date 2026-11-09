@@ -1,3 +1,7 @@
+@let data = this.data();
+@let bucket = this.bucket();
+@let focusedDay = this.focusedDay();
+@let peakDay = this.peakDay();
 <div class="content enter expense-dashboard">
   <section class="expense-heading">
     <div><h1 [attr.tabindex]="-1">Дашборды</h1></div>
@@ -6,48 +10,50 @@
         >Месяц<input
           type="month"
           aria-label="Месяц расходов"
-          [value]="month"
+          [value]="month()"
           min="2000-01"
           [max]="currentMonth"
           (input)="changeMonth(eventValue($event))" /></label
       ><label
         >Валюта<select
           aria-label="Валюта расходов"
-          [value]="currency"
-          [disabled]="status !== 'ready' || !data?.currencies.length"
-          (change)="setCurrency(eventValue($event)); setSelectedDay(null); setAllMerchants(false)"
+          [value]="currency()"
+          [disabled]="status() !== 'ready' || !data?.currencies.length"
+          (change)="
+            currency.set(eventValue($event)); selectedDay.set(null); allMerchants.set(false)
+          "
         >
           @if (data?.currencies.length) {
             @for (item of data.currencies; track $index) {
               <option>{{ item.currency }}</option>
             }
           } @else {
-            <option [value]="currency">{{ currency }}</option>
+            <option [value]="currency()">{{ currency() }}</option>
           }
         </select></label
-      ><button class="refresh-button" (click)="reload()" [disabled]="status === 'loading'">
-        {{ status === 'loading' ? 'Загружаем…' : 'Обновить данные' }}
+      ><button class="refresh-button" (click)="reload()" [disabled]="status() === 'loading'">
+        {{ status() === 'loading' ? 'Загружаем…' : 'Обновить данные' }}
       </button>
     </div>
   </section>
   <p class="expense-caption">
-    {{ monthLabel }} · Только расходы, без доходов и переводов. Валюты не суммируются.
+    {{ monthLabel() }} · Только расходы, без доходов и переводов. Валюты не суммируются.
   </p>
-  <div aria-live="polite" [attr.aria-busy]="status === 'loading'">
-    @if (status === 'loading') {
+  <div aria-live="polite" [attr.aria-busy]="status() === 'loading'">
+    @if (status() === 'loading') {
       <section class="panel expense-state">
         <h2>Загружаем расходы месяца…</h2>
         <p>Получаем все операции из Notion.</p>
       </section>
     }
-    @if (status === 'error') {
+    @if (status() === 'error') {
       <section class="panel expense-state" role="alert">
         <h2>Не удалось загрузить весь месяц</h2>
         <p>Проверьте подключение и повторите загрузку. Неполные итоги не показаны.</p>
         <button class="refresh-button" (click)="reload()">Повторить</button>
       </section>
     }
-    @if (status === 'ready' && data) {
+    @if (status() === 'ready' && data) {
       @if (data.excluded > 0) {
         <p class="expense-warning">
           Не включено операций с отсутствующей или некорректной суммой: {{ data.excluded }}.
@@ -65,11 +71,13 @@
           <p>Выберите другой месяц или добавьте расходы в Notion.</p>
         </section>
       } @else {
-        <section class="expense-metrics" [attr.aria-label]="`Итоги расходов ${currency}`">
+        <section class="expense-metrics" [attr.aria-label]="`Итоги расходов ${currency()}`">
           <article>
-            <span>Потрачено · {{ currency }}</span
-            ><strong>{{ amountLabel(bucket.total, currency) }}</strong
-            ><small>{{ periodLabel }}{{ month === currentMonth ? ' · месяц ещё идёт' : '' }}</small>
+            <span>Потрачено · {{ currency() }}</span
+            ><strong>{{ amountLabel(bucket.total, currency()) }}</strong
+            ><small
+              >{{ periodLabel() }}{{ month() === currentMonth ? ' · месяц ещё идёт' : '' }}</small
+            >
           </article>
           <article>
             <span>Расходных операций</span><strong>{{ bucket.count }}</strong
@@ -78,7 +86,7 @@
           <article>
             <span>Средняя сумма операции</span
             ><strong>{{
-              amountLabel(bucket.count ? bucket.total / bucket.count : 0, currency)
+              amountLabel(bucket.count ? bucket.total / bucket.count : 0, currency())
             }}</strong
             ><small>Расходы ÷ число операций</small>
           </article>
@@ -87,7 +95,7 @@
           <article>
             <span>В среднем за день</span
             ><b>{{
-              amountLabel(bucket.days.length ? bucket.total / bucket.days.length : 0, currency)
+              amountLabel(bucket.days.length ? bucket.total / bucket.days.length : 0, currency())
             }}</b
             ><small>За {{ bucket.days.length }} календарных дней, включая дни без операций</small>
           </article>
@@ -95,7 +103,7 @@
             <span>Самый затратный день</span
             ><b>{{ peakDay && peakDay.amount > 0 ? dateLabel(peakDay.date) : 'Нет расходов' }}</b
             ><small
-              >{{ amountLabel(peakDay?.amount ?? 0, currency) }} ·
+              >{{ amountLabel(peakDay?.amount ?? 0, currency()) }} ·
               {{ shareLabel(peakDay?.amount ?? 0) }} расходов</small
             >
           </article>
@@ -107,14 +115,14 @@
             ><small>По записям Notion в выбранной валюте</small>
           </article>
         </section>
-        @if (bucket.review > 0 || currency === 'Без валюты') {
+        @if (bucket.review > 0 || currency() === 'Без валюты') {
           <p class="expense-warning">
             {{
               bucket.review > 0
                 ? `В итогах есть операции без статуса «Готово»: ${bucket.review}. `
                 : ''
             }}{{
-              currency === 'Без валюты'
+              currency() === 'Без валюты'
                 ? 'У этих операций не указана валюта — их итог может быть несопоставим.'
                 : ''
             }}
@@ -122,22 +130,27 @@
         }
         <section class="panel expense-daily">
           <div class="expense-section-heading">
-            <h2>{{ chartMode === 'daily' ? 'Расходы по дням' : 'Расходы нарастающим итогом' }}</h2>
+            <h2>
+              {{ chartMode() === 'daily' ? 'Расходы по дням' : 'Расходы нарастающим итогом' }}
+            </h2>
             <div class="expense-switch" role="group" aria-label="Вид графика">
-              <button [attr.aria-pressed]="chartMode === 'daily'" (click)="setChartMode('daily')">
+              <button
+                [attr.aria-pressed]="chartMode() === 'daily'"
+                (click)="chartMode.set('daily')"
+              >
                 По дням</button
               ><button
-                [attr.aria-pressed]="chartMode === 'cumulative'"
-                (click)="setChartMode('cumulative')"
+                [attr.aria-pressed]="chartMode() === 'cumulative'"
+                (click)="chartMode.set('cumulative')"
               >
                 С начала месяца
               </button>
             </div>
           </div>
           <p class="expense-caption">
-            {{ periodLabel }} · {{ currency }} ·
+            {{ periodLabel() }} · {{ currency() }} ·
             {{
-              chartMode === 'daily'
+              chartMode() === 'daily'
                 ? 'Расходы каждого дня'
                 : 'Общая сумма с 1-го числа по выбранный день'
             }}. Нажмите на столбец для деталей.
@@ -148,22 +161,22 @@
               [style.min-width.px]="Math.max(320, bucket.days.length * 50 + 80)"
             >
               <div class="expense-axis" aria-hidden="true">
-                <span>{{ formatNumber(dailyMax, 0) }}</span
-                ><span>{{ formatNumber(dailyMax / 2, 0) }}</span
+                <span>{{ formatNumber(dailyMax(), 0) }}</span
+                ><span>{{ formatNumber(dailyMax() / 2, 0) }}</span
                 ><span>0</span>
               </div>
               <div class="expense-columns">
-                @for (day of bucket.days; track $index) {
+                @for (day of bucket.days; track day.date) {
                   <button
-                    [class]="selectedDay === day.date ? 'selected' : ''"
-                    [attr.aria-pressed]="selectedDay === day.date"
-                    [attr.aria-label]="`${dateLabel(day.date)}: ${chartMode === 'daily' ? 'за день' : 'с начала месяца'} ${amountLabel(chartMode === 'daily' ? day.amount : day.cumulative, currency)}`"
-                    [title]="`${dateLabel(day.date)}: ${amountLabel(chartMode === 'daily' ? day.amount : day.cumulative, currency)}`"
-                    (click)="setSelectedDay(day.date)"
+                    [class]="selectedDay() === day.date ? 'selected' : ''"
+                    [attr.aria-pressed]="selectedDay() === day.date"
+                    [attr.aria-label]="`${dateLabel(day.date)}: ${chartMode() === 'daily' ? 'за день' : 'с начала месяца'} ${amountLabel(chartMode() === 'daily' ? day.amount : day.cumulative, currency())}`"
+                    [title]="`${dateLabel(day.date)}: ${amountLabel(chartMode() === 'daily' ? day.amount : day.cumulative, currency())}`"
+                    (click)="selectedDay.set(day.date)"
                   >
                     <span class="expense-bar-slot"
                       ><i
-                        [style.height]="`${((chartMode === 'daily' ? day.amount : day.cumulative) / dailyMax) * 100}%`"
+                        [style.height]="`${((chartMode() === 'daily' ? day.amount : day.cumulative) / dailyMax()) * 100}%`"
                       ></i></span
                     ><span class="expense-day-label">{{ Number(day.date.slice(-2)) }}</span>
                   </button>
@@ -174,8 +187,8 @@
           <p class="expense-day-detail" aria-live="polite">
             {{
               focusedDay
-                ? `${dateLabel(focusedDay.date)}: за день ${amountLabel(focusedDay.amount, currency)} · операций: ${focusedDay.count} · с начала месяца ${amountLabel(focusedDay.cumulative, currency)}`
-                : `Сумма за период: ${amountLabel(bucket.total, currency)}`
+                ? `${dateLabel(focusedDay.date)}: за день ${amountLabel(focusedDay.amount, currency())} · операций: ${focusedDay.count} · с начала месяца ${amountLabel(focusedDay.cumulative, currency())}`
+                : `Сумма за период: ${amountLabel(bucket.total, currency())}`
             }}
           </p>
         </section>
@@ -185,21 +198,21 @@
               <h2>Магазины и получатели</h2>
               <div class="expense-switch" role="group" aria-label="Сортировка магазинов">
                 <button
-                  [attr.aria-pressed]="merchantSort === 'amount'"
-                  (click)="setMerchantSort('amount')"
+                  [attr.aria-pressed]="merchantSort() === 'amount'"
+                  (click)="merchantSort.set('amount')"
                 >
                   По сумме</button
                 ><button
-                  [attr.aria-pressed]="merchantSort === 'count'"
-                  (click)="setMerchantSort('count')"
+                  [attr.aria-pressed]="merchantSort() === 'count'"
+                  (click)="merchantSort.set('count')"
                 >
                   По частоте
                 </button>
               </div>
             </div>
             <p class="expense-caption">
-              {{ periodLabel }} · {{ currency }} · {{ merchants.length }} групп. Сети объединены;
-              Wolt — по сервису, не по ресторану.
+              {{ periodLabel() }} · {{ currency() }} · {{ merchants().length }} групп. Сети
+              объединены; Wolt — по сервису, не по ресторану.
             </p>
             <div
               class="expense-category-list"
@@ -207,37 +220,37 @@
               role="region"
               aria-label="Разбивка расходов"
             >
-              @for (item of allMerchants ? merchants : merchants.slice(0, 6); track $index) {
+              @for (item of visibleMerchants(); track item.name) {
                 <div class="expense-category">
                   <div>
                     <b>{{ item.name }}</b
                     ><strong>{{
-                      merchantSort === 'amount'
-                        ? amountLabel(item.amount, currency)
+                      merchantSort() === 'amount'
+                        ? amountLabel(item.amount, currency())
                         : `${item.count} оп.`
                     }}</strong>
                   </div>
                   <div class="expense-category-track" aria-hidden="true">
-                    <i [style.width]="`${(item[merchantSort] / merchantMax) * 100}%`"></i>
+                    <i [style.width]="`${(item[merchantSort()] / merchantMax()) * 100}%`"></i>
                   </div>
                   <small
                     >{{
-                      merchantSort === 'count'
-                        ? `${amountLabel(item.amount, currency)} · `
+                      merchantSort() === 'count'
+                        ? `${amountLabel(item.amount, currency())} · `
                         : `${item.count} оп. · `
                     }}{{ shareLabel(item.amount) }} расходов · средняя сумма
-                    {{ amountLabel(item.amount / item.count, currency) }}</small
+                    {{ amountLabel(item.amount / item.count, currency()) }}</small
                   >
                 </div>
               }
             </div>
-            @if (merchants.length > 6) {
+            @if (merchants().length > 6) {
               <button
                 class="expense-more"
-                [attr.aria-expanded]="allMerchants"
-                (click)="setAllMerchants((value) => !value)"
+                [attr.aria-expanded]="allMerchants()"
+                (click)="allMerchants.update((value) => !value)"
               >
-                {{ allMerchants ? 'Свернуть до 6' : `Показать все (${merchants.length})` }}
+                {{ allMerchants() ? 'Свернуть до 6' : `Показать все (${merchants().length})` }}
               </button>
             }
             @if (bucket.merchants.some((item) => item.name === 'Не указан')) {
@@ -249,7 +262,7 @@
           <section class="panel expense-categories">
             <h2>Расходы по категориям</h2>
             <p class="expense-caption">
-              {{ periodLabel }} · {{ currency }} · Доля от всех расходов в этой валюте
+              {{ periodLabel() }} · {{ currency() }} · Доля от всех расходов в этой валюте
             </p>
             <div
               class="expense-category-list"
@@ -257,11 +270,11 @@
               role="region"
               aria-label="Разбивка расходов"
             >
-              @for (item of bucket.categories; track $index) {
+              @for (item of bucket.categories; track item.name) {
                 <div class="expense-category">
                   <div>
                     <b>{{ item.name }}</b
-                    ><strong>{{ amountLabel(item.amount, currency) }}</strong>
+                    ><strong>{{ amountLabel(item.amount, currency()) }}</strong>
                   </div>
                   <div class="expense-category-track" aria-hidden="true">
                     <i
@@ -281,11 +294,11 @@
         <section class="panel expense-largest">
           <h2>Крупнейшие расходы месяца</h2>
           <p class="expense-caption">
-            {{ periodLabel }} · {{ currency }} · До 10 операций по убыванию суммы. Нажмите, чтобы
-            открыть запись в Notion.
+            {{ periodLabel() }} · {{ currency() }} · До 10 операций по убыванию суммы. Нажмите,
+            чтобы открыть запись в Notion.
           </p>
           <ol class="expense-purchases">
-            @for (item of bucket.largest; track $index; let index = $index) {
+            @for (item of bucket.largest; track item.id; let index = $index) {
               <li>
                 <span class="expense-rank">{{ index + 1 }}</span>
                 <div>
@@ -299,7 +312,7 @@
                   >
                 </div>
                 <strong
-                  >{{ amountLabel(item.amount, currency)
+                  >{{ amountLabel(item.amount, currency())
                   }}<small>{{ shareLabel(item.amount) }} расходов</small></strong
                 >
               </li>

@@ -1,0 +1,15 @@
+<div class="title">
+  <span
+    ><app-icon [name]="icon()" />
+    <h2>{{ text() }}</h2></span
+  >
+  @if (action()) {
+    <button (click)="actionClick.emit()">
+      {{ action() }}<app-icon name="chevron" [size]="15" />
+    </button>
+  } @else {
+    @if (badge()) {
+      <em>{{ badge() }}</em>
+    } @else {}
+  }
+</div>

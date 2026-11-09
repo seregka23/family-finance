@@ -1,0 +1,354 @@
+@let latest = vm.latest();
+@let monthlyPlan = vm.monthlyPlan();
+@let goals = vm.goals();
+<div class="content enter">
+  <section class="hero">
+    <div>
+      <h1 [attr.tabindex]="-1">Бюджет семьи</h1>
+      <p class="subtitle">План месяца, деньги на счетах и последние расходы</p>
+      <div class="hero-tools">
+        <label class="period-select"
+          ><app-icon name="calendar" [size]="16" /><select
+            [value]="vm.periodPreset()"
+            (change)="vm.changePeriod(eventValue($event))"
+            aria-label="Период загрузки данных"
+          >
+            <option value="day">День</option>
+            <option value="week">Неделя</option>
+            <option value="month">Месяц</option>
+            <option value="halfYear">6 месяцев</option>
+            <option value="year">Год</option>
+            @if (vm.periodPreset() === 'custom') {
+              <option value="custom">Свой период</option>
+            }
+          </select></label
+        ><span class="period-caption">{{ vm.period().from }}— {{ vm.period().to }}</span>
+      </div>
+    </div>
+    <a class="cta" [href]="notionOperations" target="_blank" rel="noreferrer"
+      ><b>＋</b>Добавить в Notion <app-icon name="external" [size]="17"
+    /></a>
+  </section>
+  @if (vm.state() === 'ready' && !monthlyPlan?.unavailable && vm.planTotals().length > 0) {
+    <section class="monthly-command" aria-label="Бюджет текущего месяца">
+      <div class="monthly-command-heading">
+        <h2>{{ monthName(monthlyPlan?.month ?? currentMonthStart()) }} · бюджет месяца</h2>
+        <button (click)="vm.go('plan')">
+          Открыть план <app-icon name="chevron" [size]="16" />
+        </button>
+      </div>
+      @for (total of vm.planTotals(); track total.currency) {
+        @let progress = total.amount > 0 ? (total.actual / total.amount) * 100 : 0;
+        @let remaining = total.amount - total.actual;
+        <div class="monthly-budget-row">
+          <span class="budget-currency">{{ total.currency }}</span>
+          <div class="budget-values">
+            <span
+              ><small>Потрачено</small
+              ><strong>{{ money(total.actual, total.currency) }}</strong></span
+            ><span
+              ><small>Запланировано</small
+              ><strong>{{ money(total.amount, total.currency) }}</strong></span
+            ><span
+              ><small>{{ remaining < 0 ? 'Перерасход' : 'Осталось' }}</small
+              ><strong [class]="remaining < 0 ? 'warning' : 'mint'">{{
+                money(Math.abs(remaining), total.currency)
+              }}</strong></span
+            >
+          </div>
+          <div class="budget-progress">
+            <div><i [style.width]="`${Math.min(100, Math.max(0, progress))}%`"></i></div>
+            <span>{{ progress.toFixed(0) }}% плана</span>
+          </div>
+        </div>
+      }
+    </section>
+  }
+  @if (vm.state() === 'ready' && vm.periodValid()) {
+    <section class="metrics">
+      <article>
+        <span class="tile mint"><app-icon name="down" /></span>
+        <div>
+          <small>Расходы за период</small
+          ><strong class="multi-money">{{ groupedMoney(vm.expenseOperations()) }}</strong
+          ><em>{{ vm.expenseOperations().length }} операций</em>
+        </div>
+      </article>
+      <article>
+        <span class="tile mint"><app-icon name="calendar" /></span>
+        <div>
+          <small>Средний расход</small
+          ><strong class="multi-money">{{ groupedAverage(vm.expenseOperations()) }}</strong
+          ><em>на одну операцию · по валютам</em>
+        </div>
+      </article>
+      <article>
+        <span class="tile violet"><app-icon name="chart" /></span>
+        <div>
+          <small>Операций за период</small><strong>{{ vm.periodOperations().length }}</strong
+          ><em [class]="vm.needsReview() ? 'attention' : ''">{{
+            vm.needsReview() ? `На проверке: ${vm.needsReview()}` : 'Проверка не требуется'
+          }}</em>
+        </div>
+      </article>
+    </section>
+  }
+  @if (vm.state() === 'ready' && !goals?.unavailable && vm.reserveAccounts().length) {
+    <section class="panel reserve-overview">
+      <app-section-title
+        icon="target"
+        text="Деньги в резерве"
+        action="Все резервы"
+        (actionClick)="vm.openReserves()"
+      />
+      @for (account of vm.reserveAccounts(); track $index) {
+        <button (click)="vm.openReserves()">
+          <span
+            ><b>{{ account.name }}</b
+            ><small>{{ account.reserveNames.join(' · ') }}</small></span
+          ><span
+            ><b>{{
+              account.reserved === null ? 'Нет данных' : money(account.reserved, account.currency)
+            }}</b
+            ><small
+              >Свободно:
+              {{
+                account.available === null
+                  ? 'нет данных'
+                  : money(account.available, account.currency)
+              }}</small
+            ></span
+          >
+        </button>
+      }
+    </section>
+  }
+  <section class="triple">
+    <article class="panel accounts-overview overview-card">
+      <app-section-title
+        icon="wallet"
+        text="Счета"
+        action="Все счета"
+        (actionClick)="vm.go('accounts')"
+      />
+      @if (vm.state() === 'ready') {
+        @for (account of vm.overviewAccounts(); track account.id) {
+          <button class="account-row" (click)="vm.go('accounts')">
+            <span [class]="`symbol ${account.tone}`"
+              ><app-account-mark [bank]="account.bank" /></span
+            ><span
+              ><b>{{ account.name }}</b
+              ><small>{{ account.kind }} · {{ account.owner || 'Владелец не указан' }}</small></span
+            ><span class="activity"
+              ><small>Остаток</small
+              ><b>{{
+                account.balance === null ? 'не указан' : money(account.balance, account.currency)
+              }}</b></span
+            ><app-icon name="chevron" [size]="17" />
+          </button>
+        }
+      }
+      @if (vm.state() !== 'ready' || !vm.overviewAccounts().length) {
+        <p class="note">
+          {{
+            vm.state() === 'loading'
+              ? 'Загружаем счета из Notion…'
+              : vm.state() === 'error'
+                ? 'Не удалось загрузить счета.'
+                : 'Подходящие счета не найдены.'
+          }}
+        </p>
+      }
+    </article>
+    <article class="panel categories-panel overview-card">
+      <app-section-title
+        icon="chart"
+        text="Категории"
+        [badge]="
+          vm.state() === 'ready'
+            ? countLabel(vm.categoryBreakdown().length, ['категория', 'категории', 'категорий'])
+            : null
+        "
+      />
+      <div class="categories-scroll">
+        @for (entry of vm.categoryBreakdown(); track entry[0]) {
+          @let category = entry[0];@let details = entry[1];
+          <app-category
+            [name]="category"
+            [amount]="groupedMoney(details.items)"
+            [percent]="
+              vm.expenseOperations().length
+                ? (details.count / vm.expenseOperations().length) * 100
+                : 0
+            "
+            [count]="details.count"
+            [tone]="categoryTone(category)"
+          />
+        }
+        @if (!vm.categoryBreakdown().length) {
+          <p class="note">
+            {{
+              vm.state() === 'loading'
+                ? 'Загружаем категории…'
+                : vm.state() === 'error'
+                  ? 'Не удалось загрузить категории.'
+                  : 'Нет расходов за выбранный период.'
+            }}
+          </p>
+        }
+      </div>
+    </article>
+    <article class="panel overview-card">
+      <app-section-title icon="receipt" text="Последняя операция" /><button
+        class="latest"
+        [disabled]="!latest"
+        (click)="latest && vm.selected.set(latest)"
+      >
+        <span class="receipt-orb"
+          ><app-icon
+            [name]="
+              latest?.operationType === 'Доход'
+                ? 'up'
+                : latest?.source === 'Чек'
+                  ? 'receipt'
+                  : 'card'
+            "
+            [size]="34" /></span
+        ><span
+          ><small>{{ latest?.date ?? 'За выбранный период' }}{{ latest?.time ?? '' }}</small
+          ><b>{{
+            latest?.title ??
+              (vm.state() === 'loading'
+                ? 'Загружаем операции…'
+                : vm.state() === 'error'
+                  ? 'Не удалось загрузить операции'
+                  : 'Операций пока нет')
+          }}</b>
+          @if (latest) {
+            <strong [class]="latest.operationType === 'Доход' ? 'income-amount' : ''"
+              >{{ latest.operationType === 'Доход' ? '+' : '−'
+              }}{{ money(latest.amount, latest.currency) }}</strong
+            ><em>{{ latest.shortAccount }}</em>
+          }</span
+        ><app-icon name="chevron" />
+      </button>
+    </article>
+  </section>
+  <section class="lower">
+    <article class="panel">
+      <app-section-title
+        icon="receipt"
+        text="Последние операции"
+        action="Весь журнал"
+        (actionClick)="vm.go('operations')"
+      />
+      <div
+        class="recent recent-scroll"
+        [attr.tabindex]="0"
+        role="region"
+        aria-label="Последние 15 операций выбранного периода"
+      >
+        @for (item of vm.periodOperations().slice(0, 15); track item.id) {
+          <button (click)="vm.selected.set(item)">
+            <span [class]="`symbol ${categoryTone(item.category)}`"
+              ><app-icon
+                [name]="
+                  item.operationType === 'Доход' ? 'up' : item.source === 'Чек' ? 'receipt' : 'card'
+                " /></span
+            ><span
+              ><b>{{ item.title }}</b
+              ><small>{{ item.date }} · {{ item.shortAccount }}</small></span
+            ><app-status [value]="item.status" /><strong
+              [class]="item.operationType === 'Доход' ? 'income-amount' : ''"
+              >{{ item.operationType === 'Доход' ? '+' : '−'
+              }}{{ money(item.amount, item.currency) }}</strong
+            >
+          </button>
+        }
+      </div>
+      @if (!vm.periodOperations().length) {
+        <p class="note">
+          {{
+            vm.state() === 'loading'
+              ? 'Загружаем операции…'
+              : vm.state() === 'error'
+                ? 'Данные временно недоступны.'
+                : 'За выбранный период операций нет.'
+          }}
+        </p>
+      }
+    </article>
+    <article class="panel plan">
+      <app-section-title
+        icon="target"
+        [text]="`План на ${monthName(monthlyPlan?.month ?? currentMonthStart()).toLocaleLowerCase('ru')}`"
+        [badge]="vm.planItems().length ? `${vm.planItems().length} статей` : null"
+      />
+      @if (vm.state() === 'loading') {
+        <div class="plan-state">
+          <span class="tile mint"><app-icon name="target" /></span>
+          <section>
+            <b>Загружаем план…</b>
+            <p>Получаем статьи текущего месяца из Notion.</p>
+          </section>
+        </div>
+      } @else {
+        @if (vm.state() === 'error' || monthlyPlan?.unavailable) {
+          <div class="plan-state">
+            <span class="tile violet"><app-icon name="alert" /></span>
+            <section>
+              <b>План временно недоступен</b>
+              <p>Обновите данные, чтобы повторить загрузку.</p>
+            </section>
+          </div>
+        } @else {
+          @if (vm.planItems().length) {
+            <div class="plan-content">
+              <div class="plan-list">
+                @for (item of vm.sortedPlanItems().slice(0, 6); track item.id) {
+                  @let progress =
+                    item.amount > 0 ? (item.actual / item.amount) * 100 : item.actual > 0 ? 100 : 0;
+                  <button (click)="vm.go('plan')">
+                    <span class="plan-list-name"
+                      ><b>{{ shortPlanTitle(item.title) }}</b
+                      ><small>{{ item.section }}</small
+                      ><span class="plan-progress"
+                        ><i><em [style.width]="`${Math.min(100, Math.max(0, progress))}%`"></em></i
+                        ><small>{{ Math.max(0, progress).toFixed(0) }}%</small></span
+                      ></span
+                    >
+                    <div class="plan-values">
+                      <span
+                        ><small>План</small
+                        ><strong>{{ money(item.amount, item.currency) }}</strong></span
+                      ><span
+                        ><small>Факт</small
+                        ><strong [class]="item.actual > item.amount ? 'over' : ''">{{
+                          money(item.actual, item.currency)
+                        }}</strong></span
+                      >
+                    </div>
+                  </button>
+                }
+              </div>
+              <button class="plan-link" (click)="vm.go('plan')">
+                Открыть весь план <app-icon name="chevron" [size]="15" />
+              </button>
+            </div>
+          } @else {
+            <div class="plan-state">
+              <span class="tile mint"><app-icon name="target" /></span>
+              <section>
+                <b>План ещё не заполнен</b>
+                <p>Добавьте статьи с суммами для текущего месяца.</p>
+                <a [href]="notionPlan" target="_blank" rel="noreferrer"
+                  >Заполнить в Notion <app-icon name="external" [size]="15"
+                /></a>
+              </section>
+            </div>
+          }
+        }
+      }
+    </article>
+  </section>
+</div>

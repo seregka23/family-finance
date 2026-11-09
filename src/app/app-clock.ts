@@ -1,4 +1,4 @@
-import { Service, TransferState, makeStateKey, inject } from '@angular/core';
+import { Service, TransferState, inject, makeStateKey } from '@angular/core';
 
 const renderedAt = makeStateKey<string>('finance-rendered-at');
 

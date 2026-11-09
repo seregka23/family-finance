@@ -1,7 +1,7 @@
-import { Service, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import type { ExpenseDashboardData } from './models/expense-model';
+import { Service, inject } from '@angular/core';
 import type { FinanceData } from './finance-types';
+import type { ExpenseDashboardData } from './models/expense-model';
 
 @Service()
 export class FinanceApi {

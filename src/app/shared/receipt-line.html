@@ -1,0 +1,7 @@
+<div class="receipt-line">
+  <span
+    >{{ name() }}<small>{{ percent().toFixed(1) }}%</small></span
+  >
+  <div class="bar"><i [style.width]="`${percent()}%`"></i></div>
+  <b>{{ money(amount(), currency()) }}</b>
+</div>

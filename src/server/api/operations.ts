@@ -1,6 +1,3 @@
-import { mapReserves, reservedForAccount, reserveHistory } from '../../app/models/reserve-model';
-import { accountOwnerForEmail, isEmailAllowed } from '../access-control';
-import { getChatGPTUser } from '../auth';
 import {
   currentMonthStart,
   operationDay,
@@ -13,11 +10,14 @@ import {
   categoryMap,
   propertyDate as date,
   propertyNumber as num,
-  propertyText as text,
   relationIds,
   sectionLabel,
+  propertyText as text,
   type NotionPage
 } from '../../app/models/notion-finance-model';
+import { mapReserves, reservedForAccount, reserveHistory } from '../../app/models/reserve-model';
+import { accountOwnerForEmail, isEmailAllowed } from '../access-control';
+import { getChatGPTUser } from '../auth';
 
 // Notion's current API queries the data source behind a database. The old
 // /databases/:id/query endpoint started returning gateway errors after this

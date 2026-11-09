@@ -64,6 +64,30 @@ test(
       assert.doesNotMatch(html, /codex-preview|_vinext|_next/);
       assert.match(html, /ng-server-context="ssr"/);
       assert.match(html, /Бюджет семьи/);
+      for (const [path, heading] of [
+        ['/operations', 'Операции'],
+        ['/plan', 'План на'],
+        ['/accounts', 'Счета и резервы'],
+        ['/dashboards', 'Дашборды']
+      ]) {
+        const anonymousRoute = await request(path);
+        assert.equal(anonymousRoute.status, 307);
+        assert.equal(
+          anonymousRoute.headers.get('location'),
+          `/signin-with-chatgpt?return_to=${encodeURIComponent(path)}`
+        );
+        assert.equal(
+          (await request(path, { 'oai-authenticated-user-email': 'denied@example.test' })).status,
+          403
+        );
+        const route = await request(path, allowed);
+        assert.equal(route.status, 200);
+        assert.equal(route.headers.get('cache-control'), 'private, no-store');
+        const routeHtml = await route.text();
+        assert.match(routeHtml, /ng-server-context="ssr"/);
+        assert.ok(routeHtml.includes(heading), path);
+      }
+      assert.equal((await request('/unknown', allowed)).status, 404);
       for (const endpoint of ['/api/operations', '/api/expenses?month=2026-08']) {
         assert.equal((await request(endpoint)).status, 401);
         assert.equal(

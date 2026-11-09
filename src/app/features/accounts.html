@@ -1,0 +1,160 @@
+@let goals = vm.goals();
+<div class="content enter">
+  <app-page-head
+    title="Счета и резервы"
+    text="Все деньги, отложенные суммы и свободный остаток по каждому счёту."
+  />
+  @if (vm.state() === 'ready') {
+    <div class="account-subnav" role="group" aria-label="Раздел счетов">
+      <button
+        [attr.aria-pressed]="vm.accountsView() === 'balances'"
+        (click)="vm.accountsView.set('balances')"
+      >
+        Счета</button
+      ><button
+        [attr.aria-pressed]="vm.accountsView() === 'reserves'"
+        (click)="vm.accountsView.set('reserves')"
+      >
+        Цели и резервы
+      </button>
+    </div>
+    @if (vm.accountsView() === 'reserves') {
+      <app-reserves [data]="goals" [accounts]="vm.accounts()" (refresh)="vm.refreshData()" />
+    } @else {
+      <section class="account-controls">
+        <div class="account-filters" aria-label="Фильтры счетов">
+          <label class="category-select"
+            ><span>Валюта</span
+            ><select
+              [value]="vm.accountCurrencyFilter()"
+              (change)="vm.accountCurrencyFilter.set(eventValue($event))"
+              aria-label="Фильтр счетов по валюте"
+            >
+              <option value="Все">Все валюты</option>
+              @for (currency of vm.accountCurrencies(); track currency) {
+                <option [value]="currency">{{ currency }}</option>
+              }</select
+            ><app-icon name="chevron" [size]="15" /></label
+          ><label class="category-select"
+            ><span>Владелец</span
+            ><select
+              [value]="vm.accountOwnerFilter()"
+              (change)="vm.accountOwnerFilter.set(eventValue($event))"
+              aria-label="Фильтр счетов по владельцу"
+            >
+              <option value="Все">Все владельцы</option>
+              @for (owner of vm.accountOwners(); track owner) {
+                <option [value]="owner">{{ owner }}</option>
+              }</select
+            ><app-icon name="chevron" [size]="15" /></label
+          ><label class="category-select"
+            ><span>Тип счёта</span
+            ><select
+              [value]="vm.accountKindFilter()"
+              (change)="vm.accountKindFilter.set(eventValue($event))"
+              aria-label="Фильтр счетов по типу"
+            >
+              <option value="Все">Все типы</option>
+              @for (kind of vm.accountKinds(); track kind) {
+                <option [value]="kind">{{ kind }}</option>
+              }</select
+            ><app-icon name="chevron" [size]="15"
+          /></label>
+        </div>
+        <span class="account-filter-count"
+          >Показано {{ vm.filteredAccounts().length }} из {{ vm.accounts().length }}</span
+        >
+      </section>
+      <section class="account-summary" aria-label="Остатки по валютам">
+        @for (total of vm.accountCurrencyTotals(); track total.currency) {
+          <article>
+            <span class="tile mint"><app-icon name="wallet" /></span>
+            <div>
+              <small>Остаток · {{ total.currency }}</small
+              ><strong>{{
+                total.known ? money(total.balance, total.currency) : 'Не указан'
+              }}</strong
+              ><em>{{
+                total.known === total.total
+                  ? accountCountLabel(total.total)
+                  : `Учтено ${total.known} из ${total.total}`
+              }}</em>
+            </div>
+          </article>
+        }
+      </section>
+      <section class="account-grid">
+        @for (account of vm.filteredAccounts(); track account.id) {
+          <article class="account-card">
+            <div class="account-top">
+              <span [class]="`symbol large ${account.tone}`"
+                ><app-account-mark [bank]="account.bank" size="large" /></span
+              ><i>{{ account.currency }}</i>
+            </div>
+            <h2>{{ account.label }}</h2>
+            <p>{{ account.kind }} · {{ account.owner || 'Владелец не указан' }}</p>
+            <div class="account-meta">
+              <span>{{ account.bank }}</span
+              ><span>{{ account.mask }}</span>
+            </div>
+            <div class="account-balance">
+              <small>Текущий остаток</small
+              ><b>{{
+                account.balance === null
+                  ? 'Баланс не указан'
+                  : money(account.balance, account.currency)
+              }}</b>
+            </div>
+            <app-account-reserve-summary [account]="account" />
+            @if (account.reserveNames.length > 0) {
+              <button class="account-reserve-link" (click)="vm.openReserves()">
+                {{ account.reserveNames.join(' · ') }}→
+              </button>
+            }
+            <div class="account-bottom">
+              <span
+                ><small>Доходы / расходы за период</small
+                ><b>{{ vm.activityFor(account.name, account.currency) }}</b></span
+              ><em>Активен</em>
+            </div>
+          </article>
+        }
+      </section>
+      @if (!vm.filteredAccounts().length) {
+        <article class="panel account-empty">
+          <app-icon name="wallet" [size]="30" /><b>Счета не найдены</b
+          ><span>Измените валюту, владельца или тип счёта в фильтрах.</span
+          ><button
+            class="refresh-button"
+            (click)="
+              vm.accountCurrencyFilter.set('Все');
+              vm.accountOwnerFilter.set('Все');
+              vm.accountKindFilter.set('Все')
+            "
+          >
+            Сбросить фильтры
+          </button>
+        </article>
+      }
+      <section class="account-info">
+        <article class="panel data-quality">
+          <span class="tile mint"><app-icon name="database" /></span>
+          <section>
+            <small>Качество данных</small><b>Счета синхронизированы с Notion</b>
+            <p>
+              Список активных счетов и доступные текущие остатки обновляются вместе с операциями.
+            </p>
+          </section>
+        </article>
+        <article class="panel reserve-help">
+          <h2>Резервы внутри счёта</h2>
+          <p>
+            Деньги остаются на счёте, но уже отложены на конкретную цель. Оплата уменьшает и баланс,
+            и резерв.
+          </p>
+          <button class="refresh-button" (click)="vm.openReserves()">Открыть цели и резервы</button>
+        </article>
+      </section>
+    }
+  }
+</div>

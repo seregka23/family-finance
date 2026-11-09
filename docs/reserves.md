@@ -11,7 +11,7 @@ Editing follows the linked Notion records.
 movements and reserve-linked operations with full pagination. The goals payload
 contains current reserve amounts and lifetime history, independent of the
 journal's selected date range. `src/app/models/reserve-model.ts` maps these records;
-`src/app/reserves.component.ts` renders account totals, reserve rows and history.
+`src/app/features/reserves/reserves.ts` renders account totals, reserve rows and history.
 
 Notion remains the site's source. An external Supabase mirror is not a site
 connection or an automatic synchronization mechanism. Never embed a real

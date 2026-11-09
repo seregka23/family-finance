@@ -1,0 +1,197 @@
+@let latestReceipt = vm.latestReceipt();
+<div class="content enter">
+  <app-page-head
+    title="Операции"
+    text="Доходы и расходы из Notion за выбранный период."
+    [action]="true"
+  />
+  <div class="toolbar">
+    <div class="date-filter">
+      <label
+        >С
+        <input
+          type="date"
+          aria-label="Начало периода"
+          [attr.aria-invalid]="!vm.periodValid()"
+          [attr.aria-describedby]="!vm.periodValid() ? 'period-error' : null"
+          [value]="vm.period().from"
+          (input)="vm.changeDate('from', eventValue($event))" /></label
+      ><span>—</span
+      ><label
+        >по
+        <input
+          type="date"
+          aria-label="Конец периода"
+          [attr.aria-invalid]="!vm.periodValid()"
+          [attr.aria-describedby]="!vm.periodValid() ? 'period-error' : null"
+          [value]="vm.period().to"
+          (input)="vm.changeDate('to', eventValue($event))"
+      /></label>
+    </div>
+    <label class="category-select"
+      ><span>Категория</span
+      ><select
+        [value]="vm.categoryFilter()"
+        (change)="vm.categoryFilter.set(eventValue($event))"
+        aria-label="Категория операции"
+      >
+        @for (value of vm.categoryOptions(); track value) {
+          <option [value]="value">{{ value }}</option>
+        }</select
+      ><app-icon name="chevron" [size]="15" /></label
+    ><label class="operation-select"
+      ><span>Счёт</span
+      ><select
+        [value]="vm.operationAccountFilter()"
+        (change)="vm.operationAccountFilter.set(eventValue($event))"
+        aria-label="Счёт операции"
+      >
+        <option value="Все">Все счета</option>
+        @for (entry of vm.operationAccountOptions(); track entry[0]) {
+          @let value = entry[0];@let label = entry[1];
+          <option [value]="value">{{ label }}</option>
+        }</select
+      ><app-icon name="chevron" [size]="15" /></label
+    ><label
+      ><app-icon name="search" /><input
+        type="search"
+        aria-label="Поиск операций"
+        [value]="vm.query()"
+        (input)="vm.query.set(eventValue($event))"
+        placeholder="Найти операцию или магазин"
+    /></label>
+  </div>
+  @if (!vm.periodValid()) {
+    <p id="period-error" class="expense-warning" role="alert">
+      Укажите обе даты: начало должно быть не позже конца, а период — не длиннее года.
+    </p>
+  }
+  @if (vm.state() === 'ready' && vm.periodValid()) {
+    <article class="panel table">
+      <div class="summary">
+        <span>{{ vm.filteredOperations().length }} из {{ vm.operations().length }} операций</span>
+        <div class="summary-totals">
+          <b class="income-amount">Доходы: {{ groupedMoney(vm.filteredIncome()) }}</b
+          ><b>Расходы: {{ groupedMoney(vm.filteredExpenses()) }}</b>
+        </div>
+      </div>
+      <div class="thead">
+        <span>Операция</span><span>Категория</span><span>Счёт</span><span>План</span
+        ><span>Статус</span><span>Сумма</span>
+      </div>
+      @for (item of vm.filteredOperations(); track item.id) {
+        <button class="trow" (click)="vm.selected.set(item)">
+          <span class="op"
+            ><i [class]="categoryTone(item.category)"
+              ><app-icon
+                [name]="
+                  item.operationType === 'Доход' ? 'up' : item.source === 'Чек' ? 'receipt' : 'card'
+                " /></i
+            ><span
+              ><b>{{ item.title }}</b
+              ><small>{{ item.date }} · {{ item.time }} · {{ item.merchant }}</small
+              ><small class="mobile-plan">{{ item.shortAccount }} · {{ item.category }}</small
+              ><small class="mobile-plan">План: {{ item.plan }}</small>
+              @if (item.reserveName) {
+                <small class="operation-reserve"
+                  >Из резерва «{{ item.reserveName }}»:
+                  {{ money(item.reserveAmount ?? 0, item.currency)
+                  }}{{ item.status !== 'Готово' ? ' · ожидает проверки' : '' }}</small
+                >
+              }
+              @if (item.status === 'Нужна проверка') {
+                <small class="mobile-plan warning">Нужна проверка</small>
+              }
+            </span></span
+          ><span
+            ><em class="chip">{{ item.category }}</em></span
+          ><span class="muted">{{ item.shortAccount }}</span
+          ><span [class]="`operation-plan ${item.plan === 'Не привязана' ? 'unlinked' : ''}`">{{
+            item.plan
+          }}</span
+          ><app-status [value]="item.status" /><strong
+            [class]="item.operationType === 'Доход' ? 'income-amount' : ''"
+            >{{ item.operationType === 'Доход' ? '+' : '−'
+            }}{{ money(item.amount, item.currency) }}</strong
+          >
+        </button>
+      }
+      @if (!vm.filteredOperations().length) {
+        <div class="empty">
+          <app-icon name="search" [size]="30" /><b>Ничего не найдено</b
+          ><span>Измените запрос или фильтр.</span
+          ><button class="refresh-button" (click)="vm.resetFilters()">Сбросить фильтры</button>
+        </div>
+      }
+    </article>
+    <section class="insights">
+      <article class="panel receipt-card">
+        <app-section-title
+          icon="receipt"
+          [text]="latestReceipt ? `Чек · ${latestReceipt.title}` : 'Позиции чеков'"
+          [badge]="latestReceipt ? receiptItemCountLabel(latestReceipt.itemCount) : null"
+        />
+        @if (vm.receipts()?.unavailable) {
+          <div class="receipt-state">
+            <span class="tile violet"><app-icon name="alert" /></span>
+            <section>
+              <b>Позиции временно недоступны</b>
+              <p>Notion не вернул базу позиций чеков.</p>
+            </section>
+          </div>
+        } @else {
+          @if (latestReceipt) {
+            <p>Разбивка чека на {{ money(latestReceipt.total, latestReceipt.currency) }}</p>
+            @for (category of latestReceipt.categories; track category.name) {
+              <app-receipt-line
+                [name]="category.name"
+                [amount]="category.amount"
+                [percent]="category.percent"
+                [currency]="latestReceipt.currency"
+              />
+            }
+            <a
+              class="notion-section-link"
+              [href]="latestReceipt.notionUrl"
+              target="_blank"
+              rel="noreferrer"
+              >Открыть операцию в Notion <app-icon name="external" [size]="15"
+            /></a>
+          } @else {
+            <div class="receipt-state">
+              <span class="tile mint"><app-icon name="receipt" /></span>
+              <section>
+                <b>Позиции чеков ещё не добавлены</b>
+                <p>Добавьте товары и свяжите их с операцией в Notion.</p>
+                <a
+                  class="notion-section-link"
+                  [href]="notionReceiptItems"
+                  target="_blank"
+                  rel="noreferrer"
+                  >Открыть базу в Notion <app-icon name="external" [size]="15"
+                /></a>
+              </section>
+            </div>
+          }
+        }
+      </article>
+      <article class="panel review-card">
+        <span><app-icon [name]="vm.needsReview() ? 'alert' : 'check'" [size]="30" /></span>
+        <section>
+          <small>Проверка за период</small
+          ><b>{{ vm.needsReview() ? 'Проверьте операцию' : 'Проверка не требуется' }}</b>
+          <p>
+            {{
+              vm.needsReview()
+                ? 'В Notion есть операции со статусом «Нужна проверка».'
+                : 'В выбранном периоде нет операций со статусом «Нужна проверка».'
+            }}
+          </p>
+          @if (vm.needsReview() > 0) {
+            <button (click)="vm.selected.set(vm.firstReview())">Посмотреть</button>
+          }
+        </section>
+      </article>
+    </section>
+  }
+</div>
