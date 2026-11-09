@@ -70,3 +70,8 @@ export type FinanceData = {
   viewer?: ViewerData;
   updatedAt?: string;
 };
+
+export type ReserveAccount = Pick<
+  AccountSummary,
+  'id' | 'name' | 'currency' | 'balance' | 'reserved' | 'available'
+>;

@@ -1,8 +1,9 @@
+@let data = this.data();
 @if (!data || data.unavailable) {
   <section class="panel reserve-state" role="status">
     <h2>Резервы временно недоступны</h2>
     <p>Не удалось получить суммы. Обновите данные, чтобы увидеть актуальный остаток.</p>
-    <button class="refresh-button" (click)="onRefresh()">Повторить загрузку</button>
+    <button class="refresh-button" (click)="refresh.emit()">Повторить загрузку</button>
   </section>
 } @else {
   <div class="reserves-workspace">
@@ -27,12 +28,7 @@
           (change)="changeAccount(eventValue($event))"
         >
           <option value="Все">Все счета</option>
-          @for (
-            account of accounts.filter((account) =>
-              data?.items?.some((goal) => goal.accountId === account.id)
-            );
-            track $index
-          ) {
+          @for (account of accountOptions(); track $index) {
             <option [value]="account.id">{{ account.name }}</option>
           }
         </select></label
@@ -46,7 +42,7 @@
     </div>
     @if (reserveAccounts().length > 0) {
       <section class="reserve-account-strip" aria-label="Деньги на счетах с резервами">
-        @for (account of reserveAccounts(); track $index) {
+        @for (account of reserveAccounts(); track account.id) {
           <div>
             <h3>{{ account.name }}</h3>
             <dl>
@@ -61,7 +57,7 @@
               <div>
                 <dt>Свободно</dt>
                 <dd
-                  [class]='account.available !== null &amp;&amp; account.available < 0 ? "warning" : "mint"'
+                  [class]="account.available !== null && account.available < 0 ? 'warning' : 'mint'"
                 >
                   {{ money(account.available, account.currency) }}
                 </dd>
@@ -78,8 +74,8 @@
     }
     @if (goals().length) {
       <section class="reserve-list" aria-label="Список целей и резервов">
-        @for (goal of goals(); track $index) {
-          <app-reserve-row [goal]="goal" (history)="showHistory(goal.id)"></app-reserve-row>
+        @for (goal of goals(); track goal.id) {
+          <app-reserve-row [goal]="goal" (history)="showHistory(goal.id)" />
         }
       </section>
     } @else {
@@ -109,7 +105,7 @@
             (change)="selectedId.set(eventValue($event)); limit.set(30)"
           >
             <option value="Все">Все резервы</option>
-            @for (goal of goals(); track $index) {
+            @for (goal of goals(); track goal.id) {
               <option [value]="goal.id">{{ goal.title }} · {{ goal.currency }}</option>
             }
           </select></label
@@ -120,12 +116,12 @@
         <div class="reserve-state" role="status">
           <b>Историю не удалось загрузить полностью</b>
           <p>Суммы выше показаны отдельно. Обновите данные, чтобы повторить загрузку истории.</p>
-          <button class="refresh-button" (click)="onRefresh()">Повторить загрузку</button>
+          <button class="refresh-button" (click)="refresh.emit()">Повторить загрузку</button>
         </div>
       } @else {
         @if (history().length) {
           <ol>
-            @for (event of history().slice(0, limit()); track $index) {
+            @for (event of history().slice(0, limit()); track event.type + '-' + event.id) {
               <li>
                 <div>
                   <strong>{{ event.type }}</strong

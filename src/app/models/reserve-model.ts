@@ -1,8 +1,8 @@
 import {
-  propertyText as text,
-  propertyNumber as num,
   propertyDate as date,
+  propertyNumber as num,
   relationIds,
+  propertyText as text,
   type NotionPage,
   type NotionProperty
 } from './notion-finance-model';

@@ -1,3 +1,4 @@
+@let goal = this.goal();
 <article class="reserve-row">
   <div class="reserve-row-heading">
     <h3>{{ goal.title }}</h3>
@@ -10,7 +11,7 @@
   <dl class="reserve-row-values">
     <div>
       <dt>В резерве</dt>
-      <dd [class]='goal.saved !== null &amp;&amp; goal.saved < 0 ? "warning" : ""'>
+      <dd [class]="goal.saved !== null && goal.saved < 0 ? 'warning' : ''">
         {{ money(goal.saved, goal.currency) }}
       </dd>
     </div>
@@ -48,7 +49,7 @@
     }
   </div>
   <div class="reserve-row-actions">
-    <button (click)="onHistory()">История</button
+    <button (click)="history.emit()">История</button
     ><a
       [href]="goal.notionUrl"
       target="_blank"

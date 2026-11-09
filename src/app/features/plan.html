@@ -1,0 +1,107 @@
+@let monthlyPlan = vm.monthlyPlan();
+<div class="content enter">
+  <section class="page-head">
+    <div>
+      <h1 [attr.tabindex]="-1">
+        План на
+        {{ monthName(monthlyPlan?.month ?? currentMonthStart()).toLocaleLowerCase('ru') }}
+      </h1>
+      <p>Плановые суммы, фактические расходы и остаток по каждой статье.</p>
+    </div>
+    <a class="cta" [href]="notionPlan" target="_blank" rel="noreferrer"
+      >Редактировать в Notion <app-icon name="external" [size]="17"
+    /></a>
+  </section>
+  @if (vm.state() === 'loading') {
+    <article class="panel plan-page-state">
+      <span class="tile mint"><app-icon name="target" /></span>
+      <section>
+        <b>Загружаем месячный план…</b>
+        <p>Данные появятся через несколько секунд.</p>
+      </section>
+    </article>
+  } @else {
+    @if (vm.state() === 'error' || monthlyPlan?.unavailable) {
+      <article class="panel plan-page-state">
+        <span class="tile violet"><app-icon name="alert" /></span>
+        <section>
+          <b>План временно недоступен</b>
+          <p>Обновите данные, чтобы повторить загрузку.</p>
+        </section>
+      </article>
+    } @else {
+      @if (vm.planItems().length) {
+        <section class="plan-page-metrics">
+          @for (total of vm.planTotals(); track total.currency) {
+            @let progress =
+              total.amount > 0 ? (total.actual / total.amount) * 100 : total.actual > 0 ? 100 : 0;
+            <div class="plan-currency-group">
+              <article class="plan-desktop-summary">
+                <small>Запланировано</small
+                ><strong>{{ money(total.amount, total.currency) }}</strong>
+              </article>
+              <article class="plan-desktop-summary">
+                <small>Потрачено</small><strong>{{ money(total.actual, total.currency) }}</strong>
+              </article>
+              <article class="plan-desktop-summary">
+                <small>Осталось</small
+                ><strong [class]="total.actual > total.amount ? 'over' : ''">{{
+                  money(total.amount - total.actual, total.currency)
+                }}</strong>
+              </article>
+              <article class="plan-mobile-summary">
+                <div class="plan-mobile-values">
+                  <span
+                    ><small>Потрачено</small
+                    ><strong [class]="total.actual > total.amount ? 'over' : ''">{{
+                      money(total.actual, total.currency)
+                    }}</strong></span
+                  ><span
+                    ><small>Запланировано</small
+                    ><strong>{{ money(total.amount, total.currency) }}</strong></span
+                  >
+                </div>
+                <div class="plan-mobile-progress">
+                  <i><em [style.width]="`${Math.min(100, Math.max(0, progress))}%`"></em></i
+                  ><b>{{ Math.max(0, progress).toFixed(0) }}%</b>
+                </div>
+              </article>
+            </div>
+          }
+        </section>
+        <article class="panel plan-page-table">
+          <div class="plan-table-head">
+            <span>Статья</span><span>Раздел</span><span>План</span><span>Факт</span
+            ><span>Остаток</span>
+          </div>
+          @for (item of vm.sortedPlanItems(); track item.id) {
+            @let remaining = item.amount - item.actual;
+            @let percent = Math.min(100, item.amount ? (item.actual / item.amount) * 100 : 0);
+            <div class="plan-table-row">
+              <span class="plan-item-name"
+                ><b>{{ shortPlanTitle(item.title) }}</b
+                ><small>{{ item.category }}</small
+                ><i><em [style.width]="`${percent}%`"></em></i></span
+              ><span class="muted">{{ item.section }}</span
+              ><strong>{{ money(item.amount, item.currency) }}</strong
+              ><strong [class]="item.actual > item.amount ? 'over' : 'actual'">{{
+                money(item.actual, item.currency)
+              }}</strong
+              ><strong [class]="remaining < 0 ? 'over' : 'remaining'">{{
+                money(remaining, item.currency)
+              }}</strong>
+            </div>
+          }
+        </article>
+      } @else {
+        <article class="panel plan-page-state">
+          <span class="tile mint"><app-icon name="target" /></span>
+          <section>
+            <b>План ещё не заполнен</b>
+            <p>Добавьте статьи с суммами для текущего месяца в Notion.</p>
+          </section>
+        </article>
+      }
+    }
+  }
+</div>

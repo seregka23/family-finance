@@ -1,0 +1,99 @@
+@if (operation(); as selected) {
+  <dialog
+    class="backdrop"
+    (cancel)="operation.set(null)"
+    (click)="closeOnBackdrop($event)"
+    aria-labelledby="operation-dialog-title"
+    #operationDialog
+  >
+    <aside>
+      <div class="drawer-head">
+        <span
+          ><small>Детали операции</small>
+          <h2 id="operation-dialog-title">{{ selected.title }}</h2></span
+        ><button type="button" (click)="operation.set(null)" aria-label="Закрыть">
+          <app-icon name="close" />
+        </button>
+      </div>
+      <div class="drawer-amount">
+        <span [class]="categoryTone(selected.category)"
+          ><app-icon
+            [name]="
+              selected.operationType === 'Доход'
+                ? 'up'
+                : selected.source === 'Чек'
+                  ? 'receipt'
+                  : 'card'
+            "
+            [size]="30"
+        /></span>
+        <section>
+          <small>{{ selected.operationType }}</small
+          ><b [class]="selected.operationType === 'Доход' ? 'income-amount' : ''"
+            >{{ selected.operationType === 'Доход' ? '+' : '−'
+            }}{{ money(selected.amount, selected.currency) }}</b
+          >
+        </section>
+      </div>
+      <app-status [value]="selected.status" />
+      <dl>
+        <div>
+          <dt>Дата</dt>
+          <dd>
+            {{ operationDate(selected.isoDate) }}{{ selected.time ? ` · ${selected.time}` : '' }}
+          </dd>
+        </div>
+        <div>
+          <dt>Получатель</dt>
+          <dd>{{ selected.merchant || 'Не указан' }}</dd>
+        </div>
+        <div>
+          <dt>Категория</dt>
+          <dd>{{ selected.category }}</dd>
+        </div>
+        <div>
+          <dt>Счёт</dt>
+          <dd>{{ selected.account }}</dd>
+        </div>
+        <div>
+          <dt>План</dt>
+          <dd>{{ selected.plan }}</dd>
+        </div>
+        <div>
+          <dt>Валюта</dt>
+          <dd>{{ selected.currency }}</dd>
+        </div>
+        <div>
+          <dt>Участник</dt>
+          <dd>{{ selected.participant }}</dd>
+        </div>
+        <div>
+          <dt>Источник</dt>
+          <dd>{{ selected.source }}</dd>
+        </div>
+        @if (selected.items) {
+          <div>
+            <dt>Чек</dt>
+            <dd>{{ receiptItemCountLabel(selected.items) }}</dd>
+          </div>
+        } @else {}
+      </dl>
+      @if (selected.reserveName) {
+        <div class="drawer-note">
+          <small>Из резерва «{{ selected.reserveName }}»</small>
+          <p>
+            {{ money(selected.reserveAmount ?? 0, selected.currency)
+            }}{{ selected.status !== 'Готово' ? ' · сумма ещё не списана из резерва' : '' }}
+          </p>
+        </div>
+      }
+      <div class="drawer-note">
+        <small>Комментарий</small>
+        <p>{{ selected.note || 'Комментария нет' }}</p>
+      </div>
+      <a [href]="selected.notionUrl" target="_blank" rel="noreferrer"
+        >Открыть в Notion <app-icon name="external" [size]="17"
+      /></a>
+    </aside>
+  </dialog>
+}

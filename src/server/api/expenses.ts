@@ -1,7 +1,7 @@
-import { isEmailAllowed } from '../access-control';
-import { getChatGPTUser } from '../auth';
 import { aggregateExpenses, monthBounds, type ExpenseRow } from '../../app/models/expense-model';
 import { categoryFor, categoryMap, type NotionPage } from '../../app/models/notion-finance-model';
+import { isEmailAllowed } from '../access-control';
+import { getChatGPTUser } from '../auth';
 
 const SOURCE = 'd67250ad-1388-41bf-a0bb-4d7b588aea66';
 const CATEGORIES_SOURCE = '8d8dd025-16f8-424b-9386-ee16b1aa3095';

@@ -6,10 +6,10 @@ import {
 } from '@angular/ssr/node';
 import express from 'express';
 import { join } from 'node:path';
+import { isEmailAllowed } from './server/access-control';
 import { GET as expenses } from './server/api/expenses';
 import { GET as operations } from './server/api/operations';
 import { getChatGPTUser } from './server/auth';
-import { isEmailAllowed } from './server/access-control';
 
 const app = express();
 app.disable('x-powered-by');
@@ -68,7 +68,7 @@ app.use((req, res, next) => {
       );
     return;
   }
-  if (req.path !== '/') {
+  if (!['/', '/operations', '/plan', '/accounts', '/dashboards'].includes(req.path)) {
     res.status(404).send('Not found');
     return;
   }

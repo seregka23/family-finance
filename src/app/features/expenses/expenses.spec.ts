@@ -1,8 +1,8 @@
 import { TestBed } from '@angular/core/testing';
 import { of } from 'rxjs';
-import { Expenses } from './expenses.component';
-import { FinanceApi } from './finance-api';
-import { aggregateExpenses } from './models/expense-model';
+import { FinanceApi } from '../../finance-api';
+import { aggregateExpenses } from '../../models/expense-model';
+import { Expenses } from './expenses';
 
 const data = aggregateExpenses(
   Array.from({ length: 12 }, (_, i) => ({
@@ -45,7 +45,7 @@ describe('Expense dashboards', () => {
     host.querySelector<HTMLButtonElement>('.expense-columns button')!.click();
     await fixture.whenStable();
     expect(host.querySelector('.expense-day-detail')?.textContent).toContain('операций:');
-    fixture.componentInstance.setMerchantSort('count');
+    fixture.componentInstance.merchantSort.set('count');
     await fixture.whenStable();
     expect(host.textContent).toContain('средняя сумма');
   });

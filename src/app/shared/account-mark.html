@@ -1,0 +1,7 @@
+<span [class]="'bank-mark ' + tone() + ' ' + size()" [attr.aria-label]="bank() || 'Банк не указан'">
+  @if (tone() === 'cash') {
+    <app-icon name="wallet" [size]="size() === 'large' ? 24 : 19" />
+  } @else {
+    {{ tone() === 'raiffeisen' ? 'R' : bank().trim().charAt(0).toLocaleUpperCase('ru') }}
+  }
+</span>

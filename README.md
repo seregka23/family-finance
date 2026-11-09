@@ -66,6 +66,20 @@ Fonts are local assets; no Google Fonts network access is needed.
 This repository builds Angular SSR for Node. It no longer emits a Sites Worker
 artifact. The existing live Sites deployment is unchanged by this migration.
 
+## Angular structure
+
+The shell uses a router outlet; each workspace page is loaded as a separate lazy
+route: `/` (overview), `/operations`, `/plan`, `/accounts`, and `/dashboards`.
+These URLs support direct SSR loads and normal browser back/forward navigation.
+The authentication proxy continues to protect every route.
+
+`FinanceWorkspace` owns the shared filter state and resource-backed finance data.
+Derived values use `computed`; dependent choices use `linkedSignal`. The resource
+unsubscribes obsolete HttpClient requests, and pending or failed requests hide old
+totals. Feature components use signals directly rather than getter/setter adapters.
+The operation dialog uses a two-way model input and a post-render effect for native
+focus/scroll management. Presentational components live under `shared/`.
+
 ## Checks
 
 - `npm test`: production Angular build, model/API tests, real SSR-server smoke
@@ -82,7 +96,9 @@ HTML escaping, and reserve/history filtering.
 
 ## Layout
 
-- `src/app/`: standalone Angular components, signals, HttpClient service, and models.
+- `src/app/`: shell, shared workspace state, HttpClient service, and finance models.
+- `src/app/features/`: lazy feature pages, expenses, and reserves.
+- `src/app/shared/`: reusable UI components with signal inputs.
 - `src/server/`: trusted proxy authentication, access control, and Notion APIs.
 - `src/server.ts`: Express server and Angular SSR adapter.
 - `public/`: fonts, favicon, and other static assets.

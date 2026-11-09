@@ -1,3 +1,4 @@
+@let account = this.account();
 <dl class="account-reserve-values">
   <div>
     <dt>В резерве</dt>
@@ -5,7 +6,7 @@
   </div>
   <div>
     <dt>Свободно</dt>
-    <dd [class]='account.available !== null &amp;&amp; account.available < 0 ? "warning" : "mint"'>
+    <dd [class]="account.available !== null && account.available < 0 ? 'warning' : 'mint'">
       {{ money(account.available, account.currency) }}
     </dd>
   </div>
