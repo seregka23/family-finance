@@ -39,6 +39,7 @@ test(
       [
         'node_modules/wrangler/bin/wrangler.js',
         'dev',
+        'tests/fixtures/worker-production-crypto.mjs',
         '--local',
         '--persist-to', persist,
         '--ip',
