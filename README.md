@@ -1,7 +1,7 @@
 # Family Finance
 
 A private family finance dashboard built with Angular 22, server-side rendering,
-TypeScript, Tailwind CSS 4, and an Express Node server. The server reads financial
+TypeScript, and Tailwind CSS 4, with Node and Cloudflare Workers adapters. The server reads financial
 records from Notion; there is no local database. Reporting dates use Europe/Belgrade.
 
 ## Development
@@ -49,7 +49,8 @@ set `HOST=0.0.0.0` and restrict ingress to the trusted proxy.
 Keep direct public access to the Node origin blocked. Identity headers are
 trusted proxy input, not independently verified tokens. The SSR host allowlist
 in `angular.json` includes localhost, 127.0.0.1, and the existing Family Finance
-hostname; add an explicit hostname and rebuild when deploying at a new origin.
+hostname. Set `SSR_ALLOWED_HOSTS` to an explicit comma-separated hostname list
+when deploying at a different origin (hostnames only, without scheme or port).
 Do not enable wildcard host trust or forward unchecked proxy headers.
 
 The Express server checks authentication and allowlisting before Angular SSR,
@@ -63,8 +64,50 @@ The app retains the overview, operation filters and details, monthly plan,
 accounts, reserve balances and history, and expense charts and breakdowns.
 Fonts are local assets; no Google Fonts network access is needed.
 
-This repository builds Angular SSR for Node. It no longer emits a Sites Worker
-artifact. The existing live Sites deployment is unchanged by this migration.
+`npm run build` creates both `dist/family-finance` (Node) and
+`dist/family-finance-worker` (Cloudflare). `npm run build:node` builds only Node.
+The existing live Sites deployment is unchanged.
+
+## Cloudflare Workers deployment
+
+The repository includes a pinned Wrangler dependency and an explicit
+`wrangler.jsonc`. It points at the Worker module in `worker/index.mjs` and the
+assets in `dist/family-finance-worker/browser`. The Angular `worker`
+configuration uses a platform-neutral SSR entry, not the Node Express listener.
+The Node and Worker adapters share the page authentication boundary.
+
+The existing Workers Builds pipeline can keep these commands:
+
+```sh
+# Build command
+npm run build
+# Deploy command
+npx wrangler deploy
+```
+
+Wrangler will use the checked-in paths instead of running framework auto-setup.
+For a Worker-only build and deployment, use `npm run deploy`. For local Workers
+runtime testing, use `npm run preview`. After a build, `npm run deploy:check`
+checks packaging without uploading or deploying anything. `npm run cf:typegen`
+regenerates local Workers types after configuration changes.
+
+In the Cloudflare dashboard, configure the runtime values `ALLOWED_EMAILS`,
+`ACCOUNT_OWNER_BY_EMAIL`, and `SSR_ALLOWED_HOSTS` for the exact hostname your
+trusted proxy serves. Store `NOTION_TOKEN` as a Worker secret. Build-time
+variables do not replace Worker runtime variables. The compatibility settings
+make runtime bindings available through `process.env`; `keep_vars` preserves
+existing dashboard-managed variables on deployment.
+
+This app trusts identity headers from the existing authentication proxy, so its
+Worker must remain an origin reachable only through that proxy (for example,
+a Service Binding from the proxy Worker). Direct `workers.dev` and version
+preview URLs are disabled in the checked-in configuration. Keep the proxy's
+existing sign-in routes and header replacement; do not attach an unprotected
+public route directly to this Worker.
+
+Cloudflare's [static asset routing](https://developers.cloudflare.com/workers/static-assets/routing/worker-script/)
+serves browser files while page and API paths run the Worker first. No SPA HTML
+fallback is configured, so an API request cannot become a successful HTML page.
 
 ## Angular structure
 
@@ -92,8 +135,8 @@ test checks synchronous and asynchronous parsing without native fallback.
 
 ## Checks
 
-- `npm test`: production Angular build, model/API tests, real SSR-server smoke
-  test, and native Angular component interaction tests.
+- `npm test`: both production Angular builds, model/API tests, Node and local
+  Cloudflare runtime smoke tests, and Angular component interaction tests.
 - `npm run test:unit`: model and API tests without a build.
 - `npm run typecheck`: strict TypeScript checking.
 - `npx ng test --watch=false`: Angular component tests with Vitest and jsdom.
@@ -110,7 +153,9 @@ HTML escaping, and reserve/history filtering.
 - `src/app/features/`: lazy feature pages, expenses, and reserves.
 - `src/app/shared/`: reusable UI components with signal inputs.
 - `src/server/`: trusted proxy authentication, access control, and Notion APIs.
-- `src/server.ts`: Express server and Angular SSR adapter.
+- `src/server.ts`: Express server and Node SSR adapter.
+- `src/server.worker.ts`: platform-neutral Angular SSR and API entry.
+- `worker/` and `wrangler.jsonc`: Cloudflare module and deployment configuration.
 - `public/`: fonts, favicon, and other static assets.
 - `docs/`: finance data contracts and feature documentation.
 - `tests/`: finance model, API, and production-server tests.

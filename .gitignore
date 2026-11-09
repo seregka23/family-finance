@@ -8,3 +8,7 @@
 *.tsbuildinfo
 /.next/
 /.sites-runtime/
+
+/.wrangler/
+.dev.vars*
+/worker-configuration.d.ts

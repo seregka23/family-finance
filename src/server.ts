@@ -6,14 +6,13 @@ import {
 } from '@angular/ssr/node';
 import express from 'express';
 import { join } from 'node:path';
-import { isEmailAllowed } from './server/access-control';
 import { GET as expenses } from './server/api/expenses';
 import { GET as operations } from './server/api/operations';
-import { getChatGPTUser } from './server/auth';
+import { allowedSsrHosts, handlePageRequest } from './server/pages';
 
 const app = express();
 app.disable('x-powered-by');
-const angularApp = new AngularNodeAppEngine();
+const angularApp = new AngularNodeAppEngine({ allowedHosts: allowedSsrHosts() });
 
 function webRequest(req: express.Request) {
   const headers = new Headers();
@@ -45,36 +44,8 @@ app.use(
 );
 
 app.use((req, res, next) => {
-  res.setHeader('Cache-Control', 'private, no-store');
-  // These endpoints are owned by the existing authentication proxy.
-  if (['/signin-with-chatgpt', '/signout-with-chatgpt', '/callback'].includes(req.path)) {
-    res.status(503).type('text').send('Authentication proxy is required.');
-    return;
-  }
-  const user = getChatGPTUser(webRequest(req));
-  if (!user) {
-    res.redirect(
-      307,
-      `/signin-with-chatgpt?return_to=${encodeURIComponent(req.originalUrl.startsWith('//') ? '/' : req.originalUrl)}`
-    );
-    return;
-  }
-  if (!isEmailAllowed(user.email)) {
-    res
-      .status(403)
-      .type('html')
-      .send(
-        '<!doctype html><html lang="ru"><meta charset="utf-8"><title>Нет доступа</title><h1>Нет доступа</h1><p>Аккаунт не добавлен в список разрешённых пользователей.</p><a href="/signout-with-chatgpt?return_to=/">Войти с другим аккаунтом</a></html>'
-      );
-    return;
-  }
-  if (!['/', '/operations', '/plan', '/accounts', '/dashboards'].includes(req.path)) {
-    res.status(404).send('Not found');
-    return;
-  }
-  angularApp
-    .handle(req)
-    .then((response) => (response ? writeResponseToNodeResponse(response, res) : next()))
+  handlePageRequest(webRequest(req), () => angularApp.handle(req))
+    .then((response) => writeResponseToNodeResponse(response, res))
     .catch(next);
 });
 
