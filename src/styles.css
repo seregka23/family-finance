@@ -4127,3 +4127,44 @@ dd {
 /* Keep source links and secondary balances accessible in the SSR port. */
 .account-summary em { color: var(--muted); }
 .expense-source a { text-decoration: underline; text-underline-offset: 3px; }
+
+/* Account access controls */
+.signout {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  white-space: nowrap;
+  justify-self: end;
+  color: var(--muted);
+  padding: 10px 12px;
+  border-radius: 8px;
+  text-decoration: none;
+}
+.signout:hover, .auth-link:hover { color: var(--mint); }
+.signout:focus-visible, .auth-link:focus-visible { outline: 2px solid var(--mint); outline-offset: 2px; }
+.auth-link { display: inline-block; color: var(--mint); padding: 10px 0; }
+@media (min-width: 1101px) {
+  .dashboard > header .signout { margin-top: auto; align-self: start; }
+}
+@media (min-width: 701px) and (max-width: 900px) {
+  .dashboard > header { grid-template-columns: 1fr auto auto; }
+}
+
+/* App sign-in and invitation registration */
+.signout, button.auth-link { border: 0; background: transparent; cursor: pointer; font: inherit; }
+.signout:disabled, button.auth-link:disabled { opacity: .6; cursor: wait; }
+.auth-action-error { color: var(--warning); margin: 12px 24px; }
+.auth-page { min-height: 100dvh; display: grid; place-items: center; padding: 24px; }
+.auth-card { width: min(100%, 440px); padding: 32px; border: 1px solid var(--border2); border-radius: 20px; background: var(--surface); }
+.auth-card h1 { font-size: 28px; margin: 8px 0; }
+.auth-card > p { color: var(--muted); line-height: 1.5; }
+.auth-card .auth-brand { color: var(--mint); font-weight: 700; }
+.auth-card form { display: grid; gap: 8px; margin: 24px 0; }
+.auth-card label { margin-top: 8px; font-weight: 600; }
+.auth-card label span, .auth-card small { color: var(--muted); font-weight: 400; }
+.auth-card input { width: 100%; min-height: 44px; border: 1px solid var(--border2); border-radius: 9px; padding: 10px 12px; background: var(--surface); color: var(--text); }
+.auth-card input:focus-visible, .auth-card button:focus-visible, .auth-card a:focus-visible { outline: 2px solid var(--mint); outline-offset: 2px; }
+.auth-card form button { min-height: 44px; margin-top: 14px; border: 0; border-radius: 9px; background: var(--mint); color: #07120f; font-weight: 700; cursor: pointer; }
+.auth-card form button:disabled { opacity: .6; cursor: wait; }
+.auth-card a { color: var(--mint); }
+.auth-card .auth-error { color: var(--warning); margin: 8px 0 0; }

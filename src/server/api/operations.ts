@@ -1,3 +1,4 @@
+import { requireAccess } from '../auth';
 import type { FinanceData, Operation } from '../../app/finance-types';
 import { currentMonthStart, validDate, validPeriod } from '../../app/models/finance-ui-model';
 import { type FinancialReserve } from '../../app/models/reserve-model';
@@ -13,6 +14,8 @@ import {
 } from '../database';
 
 export async function GET(request: Request, database?: FinanceDatabase) {
+  const access = await requireAccess(request, database);
+  if (access instanceof Response) return access;
   const url = new URL(request.url);
   const from = url.searchParams.get('from');
   const to = url.searchParams.get('to');

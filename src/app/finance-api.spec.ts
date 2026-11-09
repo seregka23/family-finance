@@ -15,8 +15,14 @@ describe('Finance API transport', () => {
     expect(request.request.params.get('from')).toBe('2026-11-01');
     expect(request.request.params.get('to')).toBe('2026-11-30');
     expect(request.request.transferCache).toBe(false);
+    expect(request.request.headers.get('X-Requested-With')).toBe('XMLHttpRequest');
     subscription.unsubscribe();
     expect(request.cancelled).toBe(true);
+    const expenseSubscription = api.expenses('2026-11').subscribe();
+    const expense = http.expectOne((r) => r.url === '/api/expenses');
+    expect(expense.request.headers.get('X-Requested-With')).toBe('XMLHttpRequest');
+    expect(expense.request.transferCache).toBe(false);
+    expenseSubscription.unsubscribe();
     http.verify();
   });
 });

@@ -1,6 +1,6 @@
 # Monthly expense dashboard
 
-The public `/api/expenses?month=YYYY-MM` endpoint reads expense operations and
+The authenticated `/api/expenses?month=YYYY-MM` endpoint reads expense operations and
 category report flags from D1 and aggregates a monthly report. Invalid month inputs return 400.
 Calendar dates use Europe/Belgrade; currencies remain separate.
 

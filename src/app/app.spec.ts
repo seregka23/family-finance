@@ -1,6 +1,11 @@
+import { AuthService } from './auth-service';
+import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
-import { of } from 'rxjs';
+import { of, Subject } from 'rxjs';
+import { HttpErrorResponse } from '@angular/common/http';
+import type { FinanceData } from './finance-types';
 import { App } from './app';
 import { AppClock } from './app-clock';
 import { routes } from './app.routes';
@@ -13,7 +18,8 @@ describe('Routed finance workspace', () => {
   beforeEach(() => {
     TestBed.configureTestingModule({
       providers: [
-        provideRouter(routes),
+        provideRouter(routes), provideHttpClient(), provideHttpClientTesting(),
+        { provide: AuthService, useValue: { logout: vi.fn(), busy: () => false, error: () => '' } },
         { provide: AppClock, useValue: { now: new Date('2026-11-10') } },
         { provide: FinanceApi, useValue: { operations: () => of(fixtureData) } }
       ]
@@ -62,4 +68,52 @@ describe('Routed finance workspace', () => {
     const active = host.querySelector('[aria-current=page]');
     expect(active?.getAttribute('aria-label')).toBe('Операции');
   });
+  it.each([401, 403] as const)('clears open operation details after authentication failure %s and subsequent recovery', async (status) => {
+    const requests: Subject<FinanceData>[] = [];
+    TestBed.overrideProvider(FinanceApi, { useValue: { operations: () => {
+      const response = new Subject<FinanceData>();
+      requests.push(response);
+      return response;
+    } } });
+    const fixture = TestBed.createComponent(App);
+    await TestBed.inject(Router).navigateByUrl('/operations');
+    await vi.waitFor(() => expect(requests).toHaveLength(1));
+    requests[0].next(fixtureData);
+    await fixture.whenStable();
+    const host: HTMLElement = fixture.nativeElement;
+    host.querySelector<HTMLButtonElement>('.trow')!.click();
+    await fixture.whenStable();
+    expect(host.querySelector('dialog')?.open).toBe(true);
+    const workspace = TestBed.inject(FinanceWorkspace);
+    expect(workspace.selected()).not.toBeNull();
+    workspace.refreshData();
+    await vi.waitFor(() => expect(requests).toHaveLength(2));
+    requests[1].error(new HttpErrorResponse({ status }));
+    await fixture.whenStable();
+    expect(workspace.selected()).toBeNull();
+    expect(host.querySelector('dialog')).toBeNull();
+    expect(host.querySelector('#operation-dialog-title')).toBeNull();
+    workspace.refreshData();
+    await vi.waitFor(() => expect(requests).toHaveLength(3));
+    requests[2].next(fixtureData);
+    await fixture.whenStable();
+    expect(workspace.selected()).toBeNull();
+    expect(host.querySelector('dialog')).toBeNull();
+  });
+
+  it('renders public authentication routes without starting finance requests', async () => {
+    const operations = vi.fn(() => of(fixtureData));
+    TestBed.overrideProvider(FinanceApi, { useValue: { operations } });
+    const fixture = TestBed.createComponent(App);
+    const router = TestBed.inject(Router);
+    await router.navigateByUrl('/login');
+    await fixture.whenStable();
+    expect(fixture.nativeElement.querySelector('#auth-title')?.textContent).toBe('Вход');
+    expect(operations).not.toHaveBeenCalled();
+    await router.navigateByUrl('/register?token=invitation');
+    await fixture.whenStable();
+    expect(fixture.nativeElement.querySelector('#auth-title')?.textContent).toBe('Регистрация');
+    expect(operations).not.toHaveBeenCalled();
+  });
+
 });

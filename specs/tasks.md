@@ -1,52 +1,65 @@
-# Cloudflare D1 finance storage
+# In-app registration and authorization
 
 ## Task
 
-Use Cloudflare D1 (SQLite) as the application's database. This replaces the empty
-API implementation from merged PR #8. Authentication remains removed.
+Implement registration, sign-in and authorization inside the D1-backed app,
+replacing the Cloudflare Access implementation in the existing authentication PR.
+The initial owner email is `seregka23@gmail.com`.
 
 ## Acceptance criteria
 
-- Provision a dedicated D1 database and configure the Worker binding using its
-  real identifier, with reproducible, additive SQL migrations.
-- Store accounts, categories, operations, monthly plans, receipt items, reserves
-  and reserve history. Use integer minor units, foreign keys and useful indexes.
-- Read stored data through the existing public operations and expense APIs,
-  preserving payload shapes, date filters, currency isolation and finance totals.
-- Use prepared/bound queries and request-scoped D1 bindings; never expose a
-  general SQL endpoint or add unauthenticated write endpoints.
-- Distinguish an empty database from a missing binding or failed query (503).
-- Provide local migration and SQL commands, production migration instructions,
-  and tests against actual local D1 with synthetic records only.
-- Verify both production builds, TypeScript, API/domain/runtime tests and review.
+- Provide public login/registration screens isolated from the finance workspace.
+- Use email-bound, expiring, single-use invitations for private family registration;
+  no unverified public signup or open administrator bootstrap.
+- Store versioned salted password hashes, opaque hashed sessions, invites and
+  rate-limit state in an additive D1 migration. Protect passwords with standard
+  Web Crypto PBKDF2-SHA256 at 600,000 iterations and a separate random pepper.
+- Enforce session expiry, enabled status and member/admin authorization before
+  finance reads; revoke/rotate sessions and secure cookies appropriately.
+- Protect auth writes with strict Origin checks, JSON body limits and rate limits.
+- Keep invitation tokens out of HTTP URLs/logs and remove their browser fragments.
+- Preserve finance schemas, reports, precision safeguards and session-expiry UI.
+- Pass real registration/authorization/D1/Node/Worker/Angular tests and review.
+- Initialize auth storage/configuration and provide a private owner invitation;
+  existing finance records remain untouched.
 
 ## Status
 
-Implementation complete and reviewed without blocking findings.
-
-Provisioned `family-finance` D1 in EEUR, identifier
-`813be64c-d2eb-45c6-a2a0-83806f1eb85b`. Applied `0001_finance.sql` to this new
-empty database through the connected Cloudflare API and recorded it in Wrangler's
-`d1_migrations` table. Verified seven finance tables, zero financial records,
-no foreign-key violations, and successful execution of all seven actual
-application read queries against the remote schema. Existing databases and
-financial records were untouched; no production sample data was inserted.
+Source implementation is complete; final read-only review has no blocking findings.
+The existing PR #10 is updated to replace Cloudflare Access with application-owned
+authentication. No team-domain setup is required.
 
 Validation:
 
-- `npm test`: both production builds; 23 Node/model/API/runtime tests and
-  11 Angular component tests passed.
-- Real local D1 migration, seed and restart tests demonstrate persisted data;
-  synthetic fixtures cover more than 100 operations, date/currency isolation,
-  plan actuals, receipts, accounts, reserves, constraints and error handling.
-- Regression tests cover precise monetary conversion, reporting boundaries,
-  oversized totals and derived balance overflow.
-- Strict TypeScript, generated binding types and whitespace checks passed.
-- Wrangler deployment dry run passed with the real `DB` binding and 28 assets
-  (1173.45 KiB module upload, 271.92 KiB gzip).
+- `npm test`: both production builds, 30 Node/model/API/runtime tests and
+  22 Angular tests passed (52 total).
+- Real local Worker+D1 tests execute invitation registration, password login,
+  authenticated finance reads, logout and persistence across restarts.
+- Security tests cover invite replay/expiry/email binding and concurrency,
+  password hashing, cookie flags, session rotation/revocation/expiry, disabled
+  users/roles, origin/body protections, rate limits and forged identity headers.
+- Browser/HTTP tests verify fragment-only invitation delivery, immediate history
+  removal, no invitation in HTTP URLs/SSR HTML, and private helper output files.
+- Fresh `npm ci` installed 452 packages without warnings.
+- TypeScript, generated bindings, whitespace checks, the local migration command
+  and deployment dry run passed. Worker packaging contains 34 assets, 1284.16 KiB
+  module (292.75 KiB gzip). Native timing-safe comparison was verified in workerd.
 
-The Worker code and binding become live after PR merge and the existing deployment
-pipeline succeeds. No Worker deployment was performed in this task. Node SSR is
-still supported, with finance API 503 responses when no D1 binding is available;
-use Wrangler for database-backed local development. The public application
-remains read-only; records are managed through authenticated SQL tooling.
+Production preparation:
+
+- Applied additive `0002_auth.sql` to the existing D1 database and recorded the
+  migration. Verified no foreign-key violations and no users or sessions yet.
+- Created a cryptographically random `AUTH_SECRET` directly in Cloudflare without
+  printing or committing it. Cloudflare's secret API publishes a secret version
+  of the existing Worker; the new application code still awaits PR deployment.
+- Stored one expiring, single-use admin invitation for `seregka23@gmail.com` in
+  D1 as a hash. Its raw registration link is only in a private mode-0600 file
+  delivered to the user, outside the repository. It expires after 24 hours.
+- Existing finance tables and records were unchanged.
+
+After merge/deployment, use the private invitation to register and verify the live
+flow. Production authentication and CPU usage have not been tested on the deployed
+new code. The local 600,000-iteration password hash took about 79 ms; the production
+Worker must have sufficient CPU budget. Billing settings were not changed.
+Self-service password recovery and account-administration UI are not implemented;
+trusted administrators manage invitations and user status through SQL tooling.

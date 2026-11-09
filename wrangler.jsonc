@@ -16,7 +16,9 @@
       "/plan",
       "/accounts",
       "/dashboards",
-      "/api/*"
+      "/api/*",
+      "/login",
+      "/register"
     ]
   },
   "observability": {
@@ -38,5 +40,13 @@
       "database_id": "813be64c-d2eb-45c6-a2a0-83806f1eb85b",
       "migrations_dir": "migrations"
     }
-  ]
+  ],
+  "vars": {
+    "AUTH_ORIGIN": "https://family-finance.seregka23.workers.dev"
+  },
+  "secrets": {
+    "required": [
+      "AUTH_SECRET"
+    ]
+  }
 }

@@ -1,3 +1,4 @@
+import { HttpErrorResponse } from '@angular/common/http';
 import { Component, inject } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
@@ -88,6 +89,17 @@ describe('Finance resource and dependent filters', () => {
     await fixture.whenStable();
     const workspace = fixture.componentInstance.workspace;
     expect(workspace.state()).toBe('ready');
+    expect(workspace.operations()).toHaveLength(0);
+    expect(workspace.accountSummaries()).toHaveLength(0);
+  });
+  it.each([401, 403] as const)('distinguishes authentication failure %s and hides financial data', async (status) => {
+    const { fixture, workspace } = await start();
+    workspace.refreshData();
+    await vi.waitFor(() => expect(requests).toHaveLength(2));
+    requests[1].error(new HttpErrorResponse({ status }));
+    await fixture.whenStable();
+    expect(workspace.authError()).toBe(status);
+    expect(workspace.state()).toBe('error');
     expect(workspace.operations()).toHaveLength(0);
     expect(workspace.accountSummaries()).toHaveLength(0);
   });

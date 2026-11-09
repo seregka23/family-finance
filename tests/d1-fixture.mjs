@@ -1,3 +1,4 @@
+import { sessionSeedSql } from './auth-test-context.mjs';
 import { DatabaseSync } from 'node:sqlite';
 import { readFileSync, readdirSync } from 'node:fs';
 
@@ -8,25 +9,30 @@ export function migrationSql() {
 }
 
 // SQLite executes the real migration and query text; only the D1 result envelope is adapted.
-export function localD1(path = ':memory:', migrate = true) {
+export function localD1(path = ':memory:', migrate = true, seedSession = true) {
   const sqlite = new DatabaseSync(path);
   sqlite.exec('PRAGMA foreign_keys=ON');
-  if (migrate) sqlite.exec(migrationSql());
+  if (migrate) {
+    sqlite.exec(migrationSql());
+    if (seedSession) sqlite.exec(sessionSeedSql());
+  }
   const statements = [];
   const db = {
     prepare(sql) {
       const statement = (values = []) => ({
         bind(...args) { return statement(args); },
-        async all() {
+        all() {
           statements.push({ sql, values });
-          return { success: true, results: sqlite.prepare(sql).all(...values), meta: {} };
+          const prepared = sqlite.prepare(sql);
+          const results = prepared.all(...values);
+          return { success: true, results, meta: { changes: Number(sqlite.prepare('SELECT changes() AS count').get().count) } };
         },
-        async first(column) {
+        first(column) {
           statements.push({ sql, values });
           const row = sqlite.prepare(sql).get(...values) ?? null;
           return column && row ? row[column] : row;
         },
-        async run() {
+        run() {
           statements.push({ sql, values });
           const result = sqlite.prepare(sql).run(...values);
           return { success: true, results: [], meta: { changes: Number(result.changes) } };
@@ -34,7 +40,17 @@ export function localD1(path = ':memory:', migrate = true) {
       });
       return statement();
     },
-    batch(statements) { return Promise.all(statements.map((statement) => statement.all())); }
+    batch(statements) {
+      sqlite.exec('BEGIN');
+      try {
+        const results = statements.map((statement) => statement.all());
+        sqlite.exec('COMMIT');
+        return Promise.resolve(results);
+      } catch (error) {
+        sqlite.exec('ROLLBACK');
+        return Promise.reject(error);
+      }
+    }
   };
   return { db, sqlite, statements, close: () => sqlite.close() };
 }

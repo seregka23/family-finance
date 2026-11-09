@@ -1,8 +1,9 @@
 import { Service, afterNextRender, computed, inject, linkedSignal, signal } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
-import { map } from 'rxjs';
+import { map, tap } from 'rxjs';
 import { AppClock } from './app-clock';
+import { authErrorStatus } from './auth-errors';
 import { FinanceApi } from './finance-api';
 import { compareAccountCurrencies, money } from './finance-format';
 import type { Operation, ReceiptData, Tab } from './finance-types';
@@ -36,6 +37,11 @@ export class FinanceWorkspace {
     params: () => (this.browserReady() && validPeriod(this.period()) ? this.period() : undefined),
     stream: ({ params }) =>
       this.api.operations(params.from, params.to, currentMonthStart()).pipe(
+        tap({
+          error: (error: unknown) => {
+            if (authErrorStatus(error)) this.selected.set(null);
+          }
+        }),
         map((data) => {
           if (!Array.isArray(data.operations))
             throw new Error('Ответ с данными неполный. Повторите загрузку.');
@@ -62,7 +68,14 @@ export class FinanceWorkspace {
   readonly receipts = computed(() => this.data()?.receipts ?? null);
   readonly goals = computed(() => this.data()?.goals ?? null);
   readonly updatedAt = computed(() => this.data()?.updatedAt ?? null);
-  readonly errorMessage = computed(() => 'Не удалось получить данные. Попробуйте ещё раз.');
+  readonly authError = computed(() => authErrorStatus(this.request.error()));
+  readonly errorMessage = computed(() =>
+    this.authError() === 401
+      ? 'Сессия завершилась. Войдите снова, чтобы продолжить.'
+      : this.authError() === 403
+        ? 'У этого аккаунта нет доступа. Войдите с другим аккаунтом.'
+        : 'Не удалось получить данные. Попробуйте ещё раз.'
+  );
   // Preserve a chosen filter if it is still present in the next successful response.
   readonly categoryFilter = linkedSignal<string[] | undefined, string>({
     source: () =>

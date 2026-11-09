@@ -62,7 +62,8 @@
                 "entry": "src/server.worker.ts",
                 "platform": "neutral"
               },
-              "outputPath": "dist/family-finance-worker"
+              "outputPath": "dist/family-finance-worker",
+              "externalDependencies": ["node:crypto"]
             }
           },
           "defaultConfiguration": "production"

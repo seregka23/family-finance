@@ -25,6 +25,7 @@
           </button>
         }
       </nav>
+      <button class="signout" type="button" [disabled]="auth.busy()" (click)="auth.logout()">{{ auth.busy() ? 'Выходим…' : 'Выйти' }}</button>
       <button
         class="menu"
         type="button"
@@ -36,6 +37,7 @@
         <app-icon [name]="menu() ? 'close' : 'menu'" />
       </button>
     </header>
+    @if (auth.error()) { <p class="auth-action-error" role="alert">{{ auth.error() }}</p> }
     <div id="workspace-content" #content>
       @if (showStatus()) {
         <div class="workspace-status">
@@ -67,6 +69,11 @@
                 {{ vm.errorMessage() }} Старые итоги скрыты, чтобы не показывать неверные суммы.
               </p>
             </div>
+            @if (vm.authError() === 401) {
+              <a [href]="loginUrl()">Войти снова</a>
+            } @else if (vm.authError() === 403) {
+              <button class="auth-link" type="button" [disabled]="auth.busy()" (click)="auth.logout()">Войти с другим аккаунтом</button>
+            }
           </section>
         }
       }

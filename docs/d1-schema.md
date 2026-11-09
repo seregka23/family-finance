@@ -1,6 +1,6 @@
 # D1 finance schema
 
-`migrations/0001_finance.sql` is the authoritative additive schema. It creates no example data. Apply it with Wrangler D1 migrations before serving the read APIs. The Worker receives the native `DB` binding per request; no database credentials or Cloudflare management API are used at runtime. Node SSR remains available without a database; its finance APIs return HTTP 503.
+`migrations/0001_finance.sql` is the authoritative additive schema. It creates no example data. Apply it with Wrangler D1 migrations before serving the read APIs. The Worker receives the native `DB` binding per request; no database credentials or Cloudflare management API are used at runtime. Node SSR requires a valid application session; without a D1 binding its authorized finance APIs return HTTP 503.
 
 Money columns end in `_minor` and store integer hundredths of the row currency (RSD, EUR, USD, RUB), never floating point or converted values. `balance_minor` may be negative or unknown (`NULL`); reserve target/saved/spent may be unknown. All other money is nonnegative. API values are major units. Every reported money value and aggregate is limited to ±90,071,992,547,409 hundredths (`floor(Number.MAX_SAFE_INTEGER / 100)`), a conservative precision margin that preserves conversion to major units and back to integer hundredths. Conversion additionally verifies that exact round trip. Stored values may exceed this reporting bound; requests involving them or totals outside the bound fail with HTTP 503 rather than returning rounded money. Foreign keys and currency consistency triggers reject mismatched monetary relationships, including edits of parent currencies.
 
@@ -22,4 +22,10 @@ Reserve `saved_minor` is the current reserved balance snapshot; `spent_minor` is
 
 `GET /api/expenses?month=YYYY-MM` reads every expense in the requested calendar month and applies the existing daily/category/merchant aggregation, report exclusion, review status, and current-date cutoff. Neither endpoint has a 100-record cap. Queries are prepared with bound user parameters. SQL/schema errors or a missing DB binding return HTTP 503; a correctly migrated empty database returns empty collections.
 
-The API contract remains read-only and public. Anyone with the application URL can read the configured finance database. Populate it only with data intended for that audience.
+The API contract remains read-only. Application session verification and current user role/status checks run before any D1 query. Authorized family members share the configured finance database; no per-user data partitioning is introduced.
+
+
+`0002_auth.sql` adds users, hashed sessions, email-bound single-use invitations
+and bounded rate-limit counters. Authentication is application-owned; no
+Cloudflare Access or Notion integration is used. See the README for credential
+and invitation administration.

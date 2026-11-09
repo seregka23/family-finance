@@ -1,5 +1,6 @@
 import type { FinanceDatabase } from './server/database';
 import { AngularAppEngine, createRequestHandler } from '@angular/ssr';
+import { handleAuthRequest } from './server/api/auth';
 import { GET as expenses } from './server/api/expenses';
 import { GET as operations } from './server/api/operations';
 import { allowedSsrHosts, handlePageRequest } from './server/pages';
@@ -9,6 +10,7 @@ const angular = new AngularAppEngine({ allowedHosts: allowedSsrHosts() });
 // Angular's platform-neutral entry is also used by the Cloudflare module Worker.
 const handleRequest = async (request: Request, context?: { DB?: FinanceDatabase }) => {
   const path = new URL(request.url).pathname;
+  if (path.startsWith('/api/auth/')) return handleAuthRequest(request, context?.DB);
   if (path.startsWith('/api/')) {
     if (request.method !== 'GET' && request.method !== 'HEAD') {
       return Response.json(
@@ -23,7 +25,7 @@ const handleRequest = async (request: Request, context?: { DB?: FinanceDatabase 
       { status: 404, headers: { 'Cache-Control': 'private, no-store' } }
     );
   }
-  return handlePageRequest(request, (value) => angular.handle(value));
+  return handlePageRequest(request, (value) => angular.handle(value), context?.DB);
 };
 
 createRequestHandler(handleRequest);

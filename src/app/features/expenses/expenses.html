@@ -49,8 +49,16 @@
     @if (status() === 'error') {
       <section class="panel expense-state" role="alert">
         <h2>Не удалось загрузить весь месяц</h2>
-        <p>Проверьте подключение и повторите загрузку. Неполные итоги не показаны.</p>
-        <button class="refresh-button" (click)="reload()">Повторить</button>
+        @if (authError() === 401) {
+          <p>Сессия завершилась. Войдите снова, чтобы продолжить.</p>
+          <a class="auth-link" [href]="loginUrl()">Войти снова</a>
+        } @else if (authError() === 403) {
+          <p>У этого аккаунта нет доступа. Войдите с другим аккаунтом.</p>
+          <button class="auth-link" type="button" [disabled]="auth.busy()" (click)="auth.logout()">Войти с другим аккаунтом</button>
+        } @else {
+          <p>Проверьте подключение и повторите загрузку. Неполные итоги не показаны.</p>
+          <button class="refresh-button" (click)="reload()">Повторить</button>
+        }
       </section>
     }
     @if (status() === 'ready' && data) {

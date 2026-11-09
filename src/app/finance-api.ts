@@ -9,6 +9,7 @@ export class FinanceApi {
   operations(from: string, to: string, month: string) {
     return this.http.get<FinanceData>('/api/operations', {
       params: { from, to, month },
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
       timeout: 60000,
       transferCache: false
     });
@@ -16,6 +17,7 @@ export class FinanceApi {
   expenses(month: string) {
     return this.http.get<ExpenseDashboardData>('/api/expenses', {
       params: { month },
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
       timeout: 60000,
       transferCache: false
     });

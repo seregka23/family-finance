@@ -1,14 +1,17 @@
 # Family Finance
 
-A public family finance interface built with Angular 22, server-side rendering,
+A private family finance interface built with Angular 22, server-side rendering,
 TypeScript, and Tailwind CSS 4, with Node and Cloudflare Workers adapters.
 Reporting dates use Europe/Belgrade.
 
 ## Data and access
 
 Finance data is stored in Cloudflare D1 (SQLite) through the Worker's `DB`
-binding. Authentication remains removed. The app's APIs are public and read-only;
-manage database records using Cloudflare's dashboard or authenticated SQL tools.
+binding. The app provides its own invitation registration and password sign-in.
+D1 stores users, hashed passwords, hashed opaque sessions and single-use
+invitations. Enabled members and administrators share the family workspace;
+finance APIs verify the session and current role/status before reading data.
+Records remain managed through authenticated SQL administration.
 No general SQL endpoint or public write API is exposed.
 
 The database starts empty. There is no automatic import from the former data
@@ -16,7 +19,7 @@ source and no sample financial data is inserted into production. The schema
 covers accounts, categories, operations, monthly plans, receipt items, reserves
 and reserve history. See [the D1 schema](docs/d1-schema.md).
 
-The public read-only APIs retain the frontend contract:
+The authenticated read-only APIs retain the frontend contract:
 
 - `/api/operations?from=YYYY-MM-DD&to=YYYY-MM-DD&month=YYYY-MM-01`
 - `/api/expenses?month=YYYY-MM`
@@ -24,7 +27,80 @@ The public read-only APIs retain the frontend contract:
 Valid requests return stored finance data; invalid dates or months return 400.
 An empty database returns empty collections. A missing binding, missing schema or
 failed database query returns 503 rather than a misleading empty report.
-The former sign-in, sign-out and callback routes return 404.
+Missing authentication configuration or database returns 503; missing or expired
+sessions return API 401; disabled or unauthorized accounts receive 403. Anonymous
+page requests redirect to `/login`. Authentication screens are public and do not
+instantiate or fetch the finance workspace.
+
+## Registration and sign-in
+
+- `/login`: email/password sign-in.
+- `/register`: create an account using an email-bound, single-use invitation.
+- Sign-out posts to `/api/auth/logout`, revokes the server-side session and
+  clears its cookie. GET requests cannot sign anyone out.
+
+There is no open registration or public administrator-bootstrap endpoint. A trusted
+administrator creates invitations using authenticated SQL tools. Invitations
+expire after 24 hours and assign either the `member` or `admin` role. This proves
+possession of an administrator-issued invitation; email delivery/verification is
+not implemented. Send invitation files privately to the intended recipient.
+
+Passwords require 12–128 characters. Web Crypto uses PBKDF2-SHA256 with 600,000
+iterations, a unique random salt and a separate HMAC pepper (`AUTH_SECRET`).
+Passwords, raw session tokens and raw invitation tokens are never stored in D1.
+Production sessions use a seven-day `__Host-` cookie with `HttpOnly`, `Secure`,
+`SameSite=Lax`, and `Path=/`; local HTTP loopback uses a separate development
+cookie. Expiry, current account status and role are checked on every protected
+request. Login rotates the current session; logout revokes it.
+
+Auth POST endpoints require JSON and an exact browser Origin matching
+`AUTH_ORIGIN`. D1-backed IP, email and invitation rate limits restrict attempts;
+failures are generic. No client-side token storage is used. HTML responses carry
+`private, no-store` and `Referrer-Policy: no-referrer`.
+
+`AUTH_SECRET` must be a stable cryptographically random secret of at least 32
+bytes, stored as a Worker secret. It is a password pepper: replacing it without a
+credential migration makes existing passwords unusable. Never commit it or send
+it in chat. `AUTH_ORIGIN` is the exact HTTPS application origin; HTTP is accepted
+only for local loopback development. Cloudflare Access is no longer required.
+
+There is no self-service password reset, email sending or account administration
+UI in this change. Trusted database administrators manage users and invitations.
+Disabling a user immediately blocks its sessions. Future password recovery must
+verify a trusted reset credential, not merely accept an email address.
+
+## Production authentication setup
+
+The initial production auth migration and random Worker secret have been
+configured. An owner invitation is delivered separately as a private file.
+For another installation:
+
+1. Apply all D1 migrations, including `0002_auth.sql`.
+2. Set the stable Worker secret `AUTH_SECRET`. The checked-in `AUTH_ORIGIN` is
+   `https://family-finance.seregka23.workers.dev`.
+3. Deploy the updated Worker, then privately provide an invitation to the owner.
+
+Create an invitation (these output paths must not already exist):
+
+```sh
+npm run auth:invite -- --email you@example.com --role admin \
+  --origin https://family-finance.seregka23.workers.dev \
+  --output /private/owner-invitation.txt --sql-output /private/owner-invitation.sql
+npm run db:execute:remote -- --file=/private/owner-invitation.sql
+```
+
+The helper writes exclusive mode-0600 files and never prints the raw invitation.
+Only its hash is in the SQL file. Registration links use `/register#token=…`:
+the fragment never reaches the HTTP server, and the browser clears it immediately
+after reading it. Tokens in query strings are ignored. The recipient opens the
+private link, enters the matching email, chooses a password, and is signed in.
+Use `--role member` for additional family members.
+
+Password hashing was verified in local workerd at about 79 ms per operation.
+Validate the deployed Worker's CPU budget under real registration/login load;
+the Workers Free 10 ms CPU allowance may be insufficient. A Workers Paid plan
+provides a larger CPU budget. This change does not alter any billing plan or
+weaken password hashing to fit a smaller budget.
 
 ## Development
 
@@ -32,12 +108,17 @@ Use Node.js 22.22.3 or newer (or Node.js 24 LTS).
 
 ```sh
 npm ci
+npm run auth:setup:local
 npm run db:migrate:local
 npm run preview
 ```
 
 Open the local URL printed by Wrangler (normally http://localhost:8787).
 Local D1 uses persistent storage under `.wrangler/state`, isolated from production.
+`auth:setup:local` creates a random private `.dev.vars` without overwriting an
+existing file. Create a local invitation using `auth:invite` with
+`--origin http://localhost:8787`, then apply its SQL with `db:execute:local`.
+Use `/register` and `/login` locally; there is no authentication bypass.
 `npm run dev` still runs Angular UI development on port 4200, but the Node adapter
 does not have a Cloudflare D1 binding; use Wrangler for database-backed development.
 
@@ -52,11 +133,12 @@ npm run build
 npm start
 ```
 
-The Node server listens on `127.0.0.1:4000`. Set `HOST` and `PORT` to change the
+For Node hosting, `.env.local` may provide environment configuration. The Node server listens on `127.0.0.1:4000`. Set `HOST` and `PORT` to change the
 listener. Deploy `dist/family-finance` as a complete directory so the server can
 serve the sibling browser assets. `npm start` loads `.env.local` if present.
-The standalone Node adapter serves public SSR but returns 503 from finance APIs
-because D1 bindings are supplied by Cloudflare Workers. Use the Worker adapter
+The standalone Node adapter retains the authentication boundary. After
+authentication, finance APIs return 503 because D1 bindings are supplied by
+Cloudflare Workers. Use the Worker adapter
 for the database-backed application.
 
 `npm run build` creates both `dist/family-finance` (Node) and
@@ -82,8 +164,8 @@ TypeScript checks generate these types automatically, including the `DB` binding
 
 The dedicated production database is `family-finance`, identifier
 `813be64c-d2eb-45c6-a2a0-83806f1eb85b`, created in Cloudflare's EEUR region. The
-binding and migration directory are checked into `wrangler.jsonc`. No database
-password or API token is needed by the running Worker.
+binding and migration directory are checked into `wrangler.jsonc`. The running Worker uses the binding, without database credentials; authentication
+requires the separate `AUTH_SECRET` Worker secret.
 
 The initial `0001_finance.sql` migration has been applied to this production
 database; all finance tables are empty. For local setup and future migrations,
@@ -144,7 +226,7 @@ fallback.
 ## Layout
 
 - `src/app/`: finance UI, domain models, state and HTTP client.
-- `src/server/`: public routing, D1 repository and read-only finance APIs.
+- `src/server/`: session authentication, registration and D1 finance APIs.
 - `migrations/`: versioned D1 SQLite schema migrations.
 - `src/server.ts`: Node Express SSR adapter.
 - `src/server.worker.ts`: Cloudflare SSR adapter.

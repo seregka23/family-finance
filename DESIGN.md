@@ -20,4 +20,4 @@ Month budget summary first: actual, plan, remaining, progress per currency. Then
 - https://actualbudget.org/docs/tour/user-interface/
 
 ## Validation boundaries
-Authentication remains removed. The public interface reads finance records from Cloudflare D1. Automated checks cover date boundaries, currency isolation, anonymous SSR/API access and component interactions.
+Invitation-based registration, password sign-in and server-side sessions protect the workspace and D1 finance APIs. Automated checks cover date boundaries, currency isolation, authenticated SSR/API access and public authentication screens and component interactions.
