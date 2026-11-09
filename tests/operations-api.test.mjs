@@ -4,7 +4,7 @@ import { loadTs } from './load-ts.mjs';
 const { GET } = await loadTs('../src/server/api/operations.ts', {
   '../access-control':
     'export const isEmailAllowed = () => globalThis.operationAllowed; export const accountOwnerForEmail = () => "Муж";',
-  '../auth': 'export const getChatGPTUser = () => globalThis.operationUser;'
+  '../auth': 'export const getChatGPTUser = async () => globalThis.operationUser;'
 });
 const text = (value) => ({ select: { name: value } });
 const row = (index) => ({
