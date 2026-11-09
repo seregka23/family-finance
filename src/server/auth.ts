@@ -1,9 +1,13 @@
-import { timingSafeEqual } from 'node:crypto';
+import { scrypt, timingSafeEqual } from 'node:crypto';
 import { json, type FinanceDatabase } from './database';
 
 export type AuthUser = { id: string; email: string; name: string; role: 'member' | 'admin' };
 export type AuthConfiguration = { origin: string; secret: string; secure: boolean };
-export const PASSWORD_VERSION = 'pbkdf2-sha256-hmac-v1';
+export const LEGACY_PASSWORD_VERSION = 'pbkdf2-sha256-hmac-v1';
+export const PASSWORD_SCHEME = 'scrypt-hmac-v2';
+// OWASP scrypt option: 32 MiB, r=8, p=3; cost786432 stays below Workers1048576 limit.
+export const SCRYPT_OPTIONS = { N: 32768, r: 8, p: 3, maxmem: 64 * 1024 * 1024 } as const;
+// Preserve the original PBKDF2 work factor for legacy credentials; never reduce it.
 export const PASSWORD_ITERATIONS = 600000;
 const SESSION_SECONDS = 604800;
 const encoder = new TextEncoder();
@@ -53,9 +57,19 @@ export async function keyedHash(value: string, secret: string): Promise<ArrayBuf
 export async function passwordHash(
   password: string,
   salt: string,
-  secret: string
+  secret: string,
+  scheme: string = PASSWORD_SCHEME
 ): Promise<string> {
   const peppered = await keyedHash(`password:${password}`, secret);
+  if (scheme === PASSWORD_SCHEME) {
+    const derived = await new Promise<Uint8Array>((resolve, reject) =>
+      scrypt(new Uint8Array(peppered), encoder.encode(salt), 32, SCRYPT_OPTIONS, (error, result) =>
+        error ? reject(error) : resolve(result)
+      )
+    );
+    return Array.from(derived, (value) => value.toString(16).padStart(2, '0')).join('');
+  }
+  if (scheme !== LEGACY_PASSWORD_VERSION) throw new Error('Unsupported password scheme');
   const key = await crypto.subtle.importKey('raw', peppered, 'PBKDF2', false, ['deriveBits']);
   return hex(
     await crypto.subtle.deriveBits(
@@ -103,7 +117,10 @@ export async function requireAccess(
   database?: FinanceDatabase
 ): Promise<AuthUser | Response> {
   const configuration = authConfiguration();
-  if (!configuration || !database) return authUnavailable();
+  if (!configuration || !database) {
+    logAuthFailure('session', 'configuration');
+    return authUnavailable();
+  }
   const token = readSessionToken(request, configuration);
   if (!token) return json({ error: 'Authentication required' }, 401);
   try {
@@ -113,13 +130,17 @@ export async function requireAccess(
       )
       .bind(await tokenHash(token), Math.floor(Date.now() / 1000))
       .all<AuthUser & { status: string }>();
-    if (!result.success) return authUnavailable();
+    if (!result.success) {
+      logAuthFailure('session', 'session_lookup');
+      return authUnavailable();
+    }
     const user = result.results[0];
     if (!user) return json({ error: 'Authentication required' }, 401);
     if (user.status !== 'enabled' || !['member', 'admin'].includes(user.role))
       return json({ error: 'Access denied' }, 403);
     return { id: user.id, email: user.email, name: user.name, role: user.role };
-  } catch {
+  } catch (error) {
+    logAuthFailure('session', 'session_lookup', error);
     return authUnavailable();
   }
 }
@@ -127,7 +148,22 @@ export async function verifyPassword(
   password: string,
   salt: string,
   hash: string,
-  secret: string
+  secret: string,
+  scheme: string = PASSWORD_SCHEME
 ): Promise<boolean> {
-  return equalHash(await passwordHash(password, salt, secret), hash);
+  return equalHash(await passwordHash(password, salt, secret, scheme), hash);
+}
+
+/** Only fixed diagnostic labels are logged: never request values or exception text. */
+export function logAuthFailure(operation: string, stage: string, error?: unknown): void {
+  const message = error instanceof Error ? error.message : '';
+  const code =
+    /PBKDF2|Pbkdf2|pbkdf2/.test(message) && /iteration|limit|100000|100,000/i.test(message)
+      ? 'password_kdf_limit'
+      : stage === 'password_hash'
+        ? 'password_hash_failure'
+        : stage === 'configuration'
+          ? 'configuration_unavailable'
+          : 'database_failure';
+  console.error(JSON.stringify({ event: 'auth_failure', operation, stage, code }));
 }

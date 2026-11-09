@@ -3,7 +3,9 @@ import {
   authUnavailable,
   keyedHash,
   passwordHash,
-  PASSWORD_VERSION,
+  PASSWORD_SCHEME,
+  LEGACY_PASSWORD_VERSION,
+  logAuthFailure,
   randomToken,
   readSessionToken,
   requireAccess,
@@ -19,6 +21,7 @@ type UserRow = AuthUser & {
   password_hash: string;
   password_salt: string;
   password_version: string;
+  password_scheme: string;
 };
 const nowSeconds = () => Math.floor(Date.now() / 1000);
 const invalid = () =>
@@ -96,8 +99,20 @@ export async function handleAuthRequest(
       status: 405,
       headers: { Allow: expected, 'Cache-Control': 'private, no-store' }
     });
+  let stage = 'configuration';
+  const operation = path.endsWith('register')
+    ? 'register'
+    : path.endsWith('login')
+      ? 'login'
+      : path.endsWith('logout')
+        ? 'logout'
+        : 'session';
+  const failure = (error?: unknown) => {
+    logAuthFailure(operation, stage, error);
+    return authUnavailable();
+  };
   const configuration = authConfiguration();
-  if (!configuration || !database) return authUnavailable();
+  if (!configuration || !database) return failure();
   if (expected === 'GET') {
     const user = await requireAccess(request, database);
     return user instanceof Response ? user : json({ user });
@@ -137,15 +152,17 @@ export async function handleAuthRequest(
   } catch {
     return json({ error: 'Invalid request' }, 400);
   }
+  stage = 'rate_limit';
   try {
     if (path === '/api/auth/logout') {
+      stage = 'session_write';
       const token = readSessionToken(request, configuration);
       if (token) {
         const result = await database
           .prepare('DELETE FROM auth_sessions WHERE token_hash=?')
           .bind(await tokenHash(token))
           .run();
-        if (!result.success) return authUnavailable();
+        if (!result.success) return failure();
       }
       const response = json({ ok: true });
       response.headers.set('Set-Cookie', sessionCookie('', configuration, true));
@@ -179,27 +196,31 @@ export async function handleAuthRequest(
       session = randomToken(),
       sessionHash = await tokenHash(session);
     if (path === '/api/auth/login') {
+      stage = 'login_lookup';
       const result = await database
         .prepare('SELECT * FROM auth_users WHERE email=?')
         .bind(email)
         .all<UserRow>();
-      if (!result.success) return authUnavailable();
+      if (!result.success) return failure();
       const user = result.results[0];
       // Hash even unknown emails so normal failures share the expensive verification path.
+      stage = 'password_hash';
       const verified = await verifyPassword(
         password,
         user?.password_salt ?? '00000000000000000000000000000000',
         user?.password_hash ?? '0'.repeat(64),
-        configuration.secret
+        configuration.secret,
+        user?.password_scheme ?? PASSWORD_SCHEME
       );
       if (
         !user ||
         !verified ||
         user.status !== 'enabled' ||
-        user.password_version !== PASSWORD_VERSION ||
+        ![LEGACY_PASSWORD_VERSION, PASSWORD_SCHEME].includes(user.password_scheme) ||
         !['member', 'admin'].includes(user.role)
       )
         return badLogin();
+      stage = 'session_write';
       const stored = await database.batch([
         database.prepare('DELETE FROM auth_sessions WHERE token_hash=?').bind(previousHash),
         database
@@ -213,7 +234,7 @@ export async function handleAuthRequest(
         stored.some((result) => !result.success) ||
         stored[1].results.length !== 1
       )
-        return authUnavailable();
+        return failure();
       return responseWithSession(
         { id: user.id, email: user.email, name: user.name, role: user.role },
         session,
@@ -221,17 +242,31 @@ export async function handleAuthRequest(
       );
     }
     if (name.length > 100 || !/^[a-f0-9]{64}$/.test(invite)) return invalid();
+    stage = 'password_hash';
     const id = crypto.randomUUID(),
       salt = randomToken(),
       hash = await passwordHash(password, salt, configuration.secret),
       inviteHash = await tokenHash(invite);
+    stage = 'registration_write';
     const results = await database.batch([
       database
         .prepare(
-          `INSERT INTO auth_users(id,email,name,role,status,password_hash,password_salt,password_version,created_at)
-        SELECT ?,?,?,role,'enabled',?,?,?,? FROM auth_invites WHERE token_hash=? AND email=? AND consumed_at IS NULL AND expires_at>? RETURNING id,email,name,role`
+          `INSERT INTO auth_users(id,email,name,role,status,password_hash,password_salt,password_version,created_at,password_scheme)
+        SELECT ?,?,?,role,'enabled',?,?,?,?,? FROM auth_invites WHERE token_hash=? AND email=? AND consumed_at IS NULL AND expires_at>? RETURNING id,email,name,role`
         )
-        .bind(id, email, name, hash, salt, PASSWORD_VERSION, now, inviteHash, email, now),
+        .bind(
+          id,
+          email,
+          name,
+          hash,
+          salt,
+          LEGACY_PASSWORD_VERSION,
+          now,
+          PASSWORD_SCHEME,
+          inviteHash,
+          email,
+          now
+        ),
       database
         .prepare(
           `UPDATE auth_invites SET consumed_at=?,user_id=? WHERE token_hash=? AND consumed_at IS NULL AND EXISTS(SELECT 1 FROM auth_users WHERE id=?) RETURNING token_hash`
@@ -252,7 +287,7 @@ export async function handleAuthRequest(
       results.length !== 4 ||
       results.some((result) => !result.success || !Array.isArray(result.results))
     )
-      return authUnavailable();
+      return failure();
     const user = results[0].results[0] as AuthUser | undefined;
     if (!user) return invalid();
     if (
@@ -260,7 +295,7 @@ export async function handleAuthRequest(
       results[1].results.length !== 1 ||
       results[2].results.length !== 1
     )
-      return authUnavailable();
+      return failure();
     return responseWithSession(user, session, configuration);
   } catch (error) {
     // A duplicate email must not reveal whether an account already exists.
@@ -270,6 +305,6 @@ export async function handleAuthRequest(
       /UNIQUE constraint failed: auth_users.email/.test(error.message)
     )
       return invalid();
-    return authUnavailable();
+    return failure(error);
   }
 }

@@ -1,65 +1,61 @@
-# In-app registration and authorization
+# Fix production registration failure
 
 ## Task
 
-Implement registration, sign-in and authorization inside the D1-backed app,
-replacing the Cloudflare Access implementation in the existing authentication PR.
-The initial owner email is `seregka23@gmail.com`.
+Fix registration returning HTTP 503 and the Russian service-unavailable message.
+Preserve account authorization, strong password hashing and existing finance data.
 
 ## Acceptance criteria
 
-- Provide public login/registration screens isolated from the finance workspace.
-- Use email-bound, expiring, single-use invitations for private family registration;
-  no unverified public signup or open administrator bootstrap.
-- Store versioned salted password hashes, opaque hashed sessions, invites and
-  rate-limit state in an additive D1 migration. Protect passwords with standard
-  Web Crypto PBKDF2-SHA256 at 600,000 iterations and a separate random pepper.
-- Enforce session expiry, enabled status and member/admin authorization before
-  finance reads; revoke/rotate sessions and secure cookies appropriately.
-- Protect auth writes with strict Origin checks, JSON body limits and rate limits.
-- Keep invitation tokens out of HTTP URLs/logs and remove their browser fragments.
-- Preserve finance schemas, reports, precision safeguards and session-expiry UI.
-- Pass real registration/authorization/D1/Node/Worker/Angular tests and review.
-- Initialize auth storage/configuration and provide a private owner invitation;
-  existing finance records remain untouched.
+- Use a standard password KDF supported by Cloudflare's production limits without
+  lowering password security. Keep the separate pepper and per-user salts.
+- Add a forward-only schema migration for the actual credential scheme; do not
+  edit the applied auth migration, rebuild user tables or invalidate references.
+- Preserve legacy credential metadata and verification where supported; never
+  silently lower iteration counts to work around a provider limit.
+- Add safe internal diagnostics for unexpected auth failures, without logging
+  passwords, tokens, emails or parameterized SQL.
+- Reproduce the production PBKDF2 cap in tests, exercise real native scrypt and
+  register/login against the built Worker and D1, and retain finance regressions.
+- Pass builds, strict TypeScript, deployment packaging and read-only review;
+  apply the additive migration before the new code is deployed.
 
-## Status
+## Findings and status
 
-Source implementation is complete; final read-only review has no blocking findings.
-The existing PR #10 is updated to replace Cloudflare Access with application-owned
-authentication. No team-domain setup is required.
+Production registration reached all rate-limit stages but returned app503 without
+creating a user or consuming the invitation. Its invocation outcome was `ok`,
+CPU 4 ms, wall 772 ms. Runtime bindings and auth migrations were present.
 
-Validation:
+Upstream workerd defines a default 100,000-iteration PBKDF2 cap; local workerd's
+server factory disables the cap. A new production-limit regression reproduces
+our previous 600,000-iteration registration failure. Both WebCrypto and Node PBKDF2
+share the same limit, so changing only the API would not fix it.
 
-- `npm test`: both production builds, 30 Node/model/API/runtime tests and
-  22 Angular tests passed (52 total).
-- Real local Worker+D1 tests execute invitation registration, password login,
-  authenticated finance reads, logout and persistence across restarts.
-- Security tests cover invite replay/expiry/email binding and concurrency,
-  password hashing, cookie flags, session rotation/revocation/expiry, disabled
-  users/roles, origin/body protections, rate limits and forged identity headers.
-- Browser/HTTP tests verify fragment-only invitation delivery, immediate history
-  removal, no invitation in HTTP URLs/SSR HTML, and private helper output files.
-- Fresh `npm ci` installed 452 packages without warnings.
-- TypeScript, generated bindings, whitespace checks, the local migration command
-  and deployment dry run passed. Worker packaging contains 34 assets, 1284.16 KiB
-  module (292.75 KiB gzip). Native timing-safe comparison was verified in workerd.
+Implementation complete and reviewed without blocking findings.
 
-Production preparation:
+New registrations use native scrypt N=32768, r=8, p=3, 32-byte output and a
+64 MiB memory ceiling, with the original per-user salt and HMAC pepper. This
+matches the OWASP recommended 32 MiB configuration and stays under the production
+scrypt cost ceiling (786432 < 1048576). Additive migration0003 introduces the
+actual `password_scheme` discriminator without rebuilding or deleting anything;
+legacy verification never silently reduces its iteration count.
 
-- Applied additive `0002_auth.sql` to the existing D1 database and recorded the
-  migration. Verified no foreign-key violations and no users or sessions yet.
-- Created a cryptographically random `AUTH_SECRET` directly in Cloudflare without
-  printing or committing it. Cloudflare's secret API publishes a secret version
-  of the existing Worker; the new application code still awaits PR deployment.
-- Stored one expiring, single-use admin invitation for `seregka23@gmail.com` in
-  D1 as a hash. Its raw registration link is only in a private mode-0600 file
-  delivered to the user, outside the repository. It expires after 24 hours.
-- Existing finance tables and records were unchanged.
+Validation passed:
 
-After merge/deployment, use the private invitation to register and verify the live
-flow. Production authentication and CPU usage have not been tested on the deployed
-new code. The local 600,000-iteration password hash took about 79 ms; the production
-Worker must have sufficient CPU budget. Billing settings were not changed.
-Self-service password recovery and account-administration UI are not implemented;
-trusted administrators manage invitations and user status through SQL tooling.
+- `npm test`: both production builds, 33 Node/model/API/runtime tests and
+  22 Angular tests (55 total).
+- Explicit production PBKDF2 limit reproduced the original503 before the fix;
+  registration and login now succeed with that limit enabled, using real scrypt.
+- Independent native scrypt vector, migration record preservation, legacy
+  behavior and diagnostic log privacy regressions passed.
+- Strict TypeScript, generated bindings, whitespace and deployment dry run passed:
+  34 assets;1285.31 KiB module (293.41 KiB gzip).
+
+Applied and recorded `0003_auth_password_scheme.sql` on the production D1 database.
+Verified no foreign-key violations, no users yet and the existing owner invitation
+still unused. No finance records, credentials, sessions or invitations were reset.
+New application code awaits PR merge/deployment through the existing pipeline.
+Live registration/login on the new code has not been verified; direct site HTTP
+access was unavailable to this execution environment, so production logs and
+server-side database checks were used for diagnosis. Retry the existing invitation
+after deployment, then confirm successful registration and login.

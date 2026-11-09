@@ -1,6 +1,9 @@
+import { readFileSync } from 'node:fs';
+import { promisify } from 'node:util';
+import { installProductionCryptoLimit } from './production-crypto-limit.mjs';
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createHash, randomBytes } from 'node:crypto';
+import { createHash, createHmac, scrypt, pbkdf2, randomBytes } from 'node:crypto';
 import { authOrigin, authSecret, loadAuthenticated } from './auth-test-context.mjs';
 import { localD1 } from './d1-fixture.mjs';
 const { handleAuthRequest } = await loadAuthenticated('../src/server/api/auth.ts');
@@ -32,6 +35,7 @@ test('real registration consumes an email-bound invitation and stores only passw
     for (const attribute of ['HttpOnly', 'Secure', 'SameSite=Lax', 'Path=/', 'Max-Age=604800']) assert.ok(cookie.includes(attribute));
     assert.doesNotMatch(cookie, /Domain=/i);
     const user = fixture.sqlite.prepare('SELECT * FROM auth_users').get();
+    assert.equal(user.password_scheme, 'scrypt-hmac-v2');
     assert.notEqual(user.password_hash, password); assert.equal(user.password_hash.length, 64);
     assert.ok(user.password_salt.length >= 32);
     const stored = fixture.sqlite.prepare('SELECT * FROM auth_sessions').get();
@@ -125,5 +129,72 @@ test('missing/forged identity is denied before finance validation or queries; br
     for (let index = 0; index < 11; index++) response = await handleAuthRequest(post('login', { email: 'unknown@example.test', password }), fixture.db);
     assert.equal(response.status, 429);
     assert.equal(fixture.sqlite.prepare('SELECT count(*) AS n FROM auth_users').get().n, 0);
+  } finally { fixture.close(); }
+});
+
+test('registration and login succeed with the production PBKDF2 iteration limit enforced', async () => {
+  const fixture = localD1(':memory:', true, false);
+  const limit = installProductionCryptoLimit();
+  try {
+    const key = await crypto.subtle.importKey('raw', new Uint8Array(32), 'PBKDF2', false, ['deriveBits']);
+    await assert.rejects(crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: new Uint8Array(16), iterations: 600000 }, key, 256), /production limit/);
+    assert.equal(limit.rejected, 1, 'test must actually enforce the production ceiling');
+    const registration = await handleAuthRequest(register(invite(fixture)), fixture.db);
+    assert.equal(registration.status, 200, await registration.clone().text());
+    const login = await handleAuthRequest(post('login', { email: 'person@example.test', password }), fixture.db);
+    assert.equal(login.status, 200, await login.clone().text());
+    assert.equal((await handleAuthRequest(session(cookieOf(login)), fixture.db)).status, 200);
+    const wrong = await handleAuthRequest(post('login', { email: 'person@example.test', password: `${password}wrong` }), fixture.db);
+    const absent = await handleAuthRequest(post('login', { email: 'unknown@example.test', password }), fixture.db);
+    assert.equal(wrong.status, 401); assert.equal(absent.status, 401);
+    assert.deepEqual(await wrong.json(), await absent.json());
+    assert.equal(limit.rejected, 1, 'password hashing must not exceed the runtime ceiling');
+  } finally { limit.restore(); fixture.close(); }
+});
+
+test('new password hashes match an independent strong scrypt calculation with the existing pepper', async () => {
+  const { passwordHash, PASSWORD_SCHEME } = await loadAuthenticated('../src/server/auth.ts');
+  const salt = '0123456789abcdef'.repeat(4);
+  const peppered = createHmac('sha256', authSecret).update(`password:${password}`).digest();
+  const expected = (await promisify(scrypt)(peppered, Buffer.from(salt, 'utf8'), 32, { N: 32768, r: 8, p: 3, maxmem: 64 * 1024 * 1024 })).toString('hex');
+  assert.equal(PASSWORD_SCHEME, 'scrypt-hmac-v2');
+  assert.equal(await passwordHash(password, salt, authSecret), expected);
+  assert.notEqual(await passwordHash(`${password}different`, salt, authSecret), expected);
+});
+
+test('additive password migration preserves legacy credentials, invitations and active sessions without downgrading them', async () => {
+  const fixture = localD1(':memory:', false, false);
+  const now = Math.floor(Date.now() / 1000);
+  const salt = '1234567890abcdef'.repeat(4);
+  const peppered = createHmac('sha256', authSecret).update(`password:${password}`).digest();
+  const legacyHash = (await promisify(pbkdf2)(peppered, salt, 600000, 32, 'sha256')).toString('hex');
+  const token = 'f'.repeat(64);
+  try {
+    for (const migration of ['0001_finance.sql', '0002_auth.sql']) fixture.sqlite.exec(readFileSync(new URL(`../migrations/${migration}`, import.meta.url), 'utf8'));
+    fixture.sqlite.prepare(`INSERT INTO auth_users(id,email,name,role,status,password_hash,password_salt,password_version,created_at) VALUES ('legacy','person@example.test','Legacy','member','enabled',?,?,'pbkdf2-sha256-hmac-v1',?)`).run(legacyHash, salt, now);
+    fixture.sqlite.prepare('INSERT INTO auth_sessions(token_hash,user_id,created_at,expires_at) VALUES (?,?,?,?)').run(digest(token), 'legacy', now, now + 3600);
+    fixture.sqlite.prepare("INSERT INTO auth_invites(token_hash,email,role,created_at,expires_at,consumed_at,user_id) VALUES (?,'person@example.test','member',?,?,?,'legacy')").run(digest('e'.repeat(64)), now, now + 3600, now);
+    const oldUser = fixture.sqlite.prepare('SELECT * FROM auth_users').get();
+    const oldSession = fixture.sqlite.prepare('SELECT * FROM auth_sessions').get();
+    const oldInvite = fixture.sqlite.prepare('SELECT * FROM auth_invites').get();
+    fixture.sqlite.exec(readFileSync(new URL('../migrations/0003_auth_password_scheme.sql', import.meta.url), 'utf8'));
+    const { password_scheme, ...preserved } = fixture.sqlite.prepare('SELECT * FROM auth_users').get();
+    assert.equal(password_scheme, 'pbkdf2-sha256-hmac-v1');
+    assert.deepEqual(preserved, { ...oldUser });
+    assert.deepEqual(fixture.sqlite.prepare('SELECT * FROM auth_sessions').get(), oldSession);
+    assert.deepEqual(fixture.sqlite.prepare('SELECT * FROM auth_invites').get(), oldInvite);
+    assert.equal((await handleAuthRequest(post('login', { email: 'person@example.test', password }), fixture.db)).status, 200);
+    const originalError = console.error; const logged = [];
+    const limit = installProductionCryptoLimit();
+    console.error = (...values) => logged.push(values);
+    try {
+      const response = await handleAuthRequest(post('login', { email: 'person@example.test', password }), fixture.db);
+      assert.equal(response.status, 503);
+      assert.equal((await handleAuthRequest(session(`__Host-family_session=${token}`), fixture.db)).status, 200);
+      assert.equal(fixture.sqlite.prepare("SELECT password_hash FROM auth_users WHERE id='legacy'").get().password_hash, legacyHash);
+      const diagnostics = JSON.stringify(logged);
+      assert.match(diagnostics, /auth_failure/); assert.match(diagnostics, /password_kdf_limit/);
+      for (const secret of [password, authSecret, 'person@example.test', token, legacyHash, salt]) assert.ok(!diagnostics.includes(secret));
+    } finally { limit.restore(); console.error = originalError; }
   } finally { fixture.close(); }
 });

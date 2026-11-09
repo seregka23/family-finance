@@ -45,8 +45,11 @@ expire after 24 hours and assign either the `member` or `admin` role. This prove
 possession of an administrator-issued invitation; email delivery/verification is
 not implemented. Send invitation files privately to the intended recipient.
 
-Passwords require 12–128 characters. Web Crypto uses PBKDF2-SHA256 with 600,000
-iterations, a unique random salt and a separate HMAC pepper (`AUTH_SECRET`).
+Passwords require 12–128 characters. New passwords use native scrypt with
+`N=32768`, `r=8`, `p=3`, a 32-byte output, a 64 MiB memory ceiling, a unique random
+salt and a separate HMAC pepper (`AUTH_SECRET`). This is an
+[OWASP recommended scrypt configuration](https://github.com/OWASP/CheatSheetSeries/blob/master/cheatsheets/Password_Storage_Cheat_Sheet.md#scrypt).
+The `N*r*p` cost is 786432, below Workers' default scrypt ceiling of 1048576.
 Passwords, raw session tokens and raw invitation tokens are never stored in D1.
 Production sessions use a seven-day `__Host-` cookie with `HttpOnly`, `Secure`,
 `SameSite=Lax`, and `Path=/`; local HTTP loopback uses a separate development
@@ -75,7 +78,7 @@ The initial production auth migration and random Worker secret have been
 configured. An owner invitation is delivered separately as a private file.
 For another installation:
 
-1. Apply all D1 migrations, including `0002_auth.sql`.
+1. Apply all D1 migrations, including `0002_auth.sql` and `0003_auth_password_scheme.sql`.
 2. Set the stable Worker secret `AUTH_SECRET`. The checked-in `AUTH_ORIGIN` is
    `https://family-finance.seregka23.workers.dev`.
 3. Deploy the updated Worker, then privately provide an invitation to the owner.
@@ -96,11 +99,24 @@ after reading it. Tokens in query strings are ignored. The recipient opens the
 private link, enters the matching email, chooses a password, and is signed in.
 Use `--role member` for additional family members.
 
-Password hashing was verified in local workerd at about 79 ms per operation.
-Validate the deployed Worker's CPU budget under real registration/login load;
-the Workers Free 10 ms CPU allowance may be insufficient. A Workers Paid plan
-provides a larger CPU budget. This change does not alter any billing plan or
-weaken password hashing to fit a smaller budget.
+Cloudflare's production PBKDF2 cap is 100,000 iterations, while local Miniflare
+removes that cap. The previous 600,000-iteration implementation could therefore
+pass local tests but fail registration in production. Tests now explicitly model
+that production limit and exercise the native scrypt path without a PBKDF2
+fallback. Native scrypt was verified in workerd at about 225 ms; validate actual
+production behavior after deployment. No billing plan is changed by this fix.
+
+Migration `0003` adds `password_scheme`, the actual hash discriminator. The old
+`password_version` column remains a compatibility marker required by the original
+schema; it does not identify new credentials. Existing hashes, sessions and
+invitation references are not changed. Legacy PBKDF2 credentials retain the full
+600,000-iteration verification where the provider supports it; they fail closed
+on a capped provider. No legacy users existed in this production database when
+the fix was prepared. The existing owner invitation remains valid and unused.
+
+Unexpected authentication failures emit only fixed internal operation/stage/code
+labels. Passwords, emails, tokens, hash values and raw SQL/exception messages are
+never included in those diagnostics.
 
 ## Development
 

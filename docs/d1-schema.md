@@ -29,3 +29,10 @@ The API contract remains read-only. Application session verification and current
 and bounded rate-limit counters. Authentication is application-owned; no
 Cloudflare Access or Notion integration is used. See the README for credential
 and invitation administration.
+
+
+`0003_auth_password_scheme.sql` adds the credential scheme discriminator without
+rebuilding tables or changing existing sessions/invitations. Existing records
+default to `pbkdf2-sha256-hmac-v1`; new records explicitly use `scrypt-hmac-v2`.
+The original `password_version` column remains an immutable compatibility marker.
+Hash verification uses `password_scheme` and never silently lowers legacy work.
