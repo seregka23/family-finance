@@ -39,7 +39,7 @@ color. Desktop breakdowns use two columns, mobile uses one; long names wrap.
 No chart-library or external script dependency. Loading, empty and error states
 remain explicit; partial paginated results fail closed; server auth is unchanged.
 
-Run model, endpoint and component-render tests, followed by the verified Sites
+Run model, endpoint and component-render tests, followed by the production Next.js
 build. Tests reconcile merchant/day/category totals, cumulative final values,
 multiple currencies, missing data, aliases, top-10 bounds, source text parsing,
 escaping and authentication. Browser visual QA was not requested.

@@ -11,16 +11,20 @@ type Property = { select?: { name: string } | null; number?: number | null; date
 type Page = { id: string; url: string; archived?: boolean; in_trash?: boolean; properties: Record<string, Property> };
 const plainText = (parts?: TextPart[]) => parts?.map(part => part.plain_text ?? part.text?.content ?? "").join("") ?? "";
 
+const json = (body: unknown, status = 200) => NextResponse.json(body, {
+  status, headers: { "Cache-Control": "private, no-store" },
+});
+
 export async function GET(request: Request) {
   const user = await getChatGPTUser();
-  if (!user) return NextResponse.json({ error: "Authentication required" }, { status: 401 });
-  if (!isEmailAllowed(user.email)) return NextResponse.json({ error: "Access denied" }, { status: 403 });
+  if (!user) return json({ error: "Authentication required" }, 401);
+  if (!isEmailAllowed(user.email)) return json({ error: "Access denied" }, 403);
   const month = new URL(request.url).searchParams.get("month") ?? "";
   let bounds;
   try { bounds = monthBounds(month); }
-  catch { return NextResponse.json({ error: "Invalid month" }, { status: 400 }); }
+  catch { return json({ error: "Invalid month" }, 400); }
   const token = process.env.NOTION_TOKEN;
-  if (!token) return NextResponse.json({ error: "Data source unavailable" }, { status: 503 });
+  if (!token) return json({ error: "Data source unavailable" }, 503);
   try {
     // A padded window captures timestamps crossing UTC midnight; aggregation
     // then applies exact Belgrade calendar boundaries (date-only values stay as is).
@@ -72,9 +76,9 @@ export async function GET(request: Request) {
         review: p["Статус разбора"]?.select?.name !== "Готово",
         merchant: plainText(p["Магазин или получатель"]?.rich_text), title: plainText(p["Операция"]?.title) });
     }
-    return NextResponse.json(aggregateExpenses(rows, month), { headers: { "Cache-Control": "private, no-store" } });
+    return json(aggregateExpenses(rows, month));
   } catch {
     // Never return a successful partial-month total when a later page fails.
-    return NextResponse.json({ error: "Не удалось загрузить весь месяц. Попробуйте обновить данные." }, { status: 502 });
+    return json({ error: "Не удалось загрузить весь месяц. Попробуйте обновить данные." }, 502);
   }
 }

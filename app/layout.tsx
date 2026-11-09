@@ -1,18 +1,8 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
 import { isEmailAllowed } from "./access-control";
 import { chatGPTSignOutPath, requireChatGPTUser } from "./chatgpt-auth";
+import "./fonts.css";
 import "./globals.css";
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
 
 export const metadata: Metadata = {
   title: "Семейные финансы",
@@ -35,9 +25,7 @@ export default async function RootLayout({
 
   return (
     <html lang="ru">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
+      <body className="antialiased">
         {allowed ? children : (
           <main className="access-page">
             <section className="access-card">
