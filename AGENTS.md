@@ -1,59 +1,69 @@
-You are an expert in TypeScript, Angular, and scalable web application development. You write functional, maintainable, performant, and accessible code following Angular and TypeScript best practices.
+# Development orchestration
 
-## TypeScript Best Practices
+## Source of truth
 
-- Use strict type checking
-- Prefer type inference when the type is obvious
-- Avoid the `any` type; use `unknown` when type is uncertain
+The feature task supplied by the user is the source of truth. By default it is
+`specs/tasks.md`. Do not replace it with a new plan. Resolve only missing
+implementation details needed to complete its acceptance criteria.
 
-## Angular Best Practices
+## Orchestrator protocol
 
-- Always use standalone components over NgModules
-- Must NOT set `standalone: true` inside Angular decorators. It's the default in Angular v20+.
-- Do NOT set `changeDetection: ChangeDetectionStrategy.OnPush` explicitly. `OnPush` is the default in Angular v22+.
-- Use signals for state management
-- Implement lazy loading for feature routes
-- Do NOT use the `@HostBinding` and `@HostListener` decorators. Put host bindings inside the `host` object of the `@Component` or `@Directive` decorator instead
-- Use `NgOptimizedImage` for all static images.
-  - `NgOptimizedImage` does not work for inline base64 images.
+For every parent task and unfinished subtask:
 
-## Accessibility Requirements
+1. Read the task, affected code, dependencies, and acceptance criteria.
+2. Identify backend, frontend, testing, and review work.
+3. Define or confirm the API/data contract before frontend implementation
+   depends on it.
+4. Delegate independent bounded work to the appropriate specialised agent.
+   Do not run agents concurrently when they will edit the same files.
+5. Collect concise results: changed files, checks run, failures, and open risks.
+6. Ask `tester` to add or update the tests required by the acceptance criteria.
+7. Run applicable project checks.
+8. Ask `reviewer` to compare the task, implementation, tests, and diff.
+9. Route review failures to the responsible agent and repeat validation.
+10. Update the task only after acceptance criteria, checks, and review pass.
 
-- It MUST pass all AXE checks.
-- It MUST follow all WCAG AA minimums, including focus management, color contrast, and ARIA attributes.
+## Delegation policy
 
-## Components
+- Use `backend` for APIs, database schema/migrations, business rules, auth,
+  integrations, and backend tests.
+- Use `frontend` for views, components, client state, accessibility, and API
+  integration in the UI.
+- Use `tester` for test strategy and missing unit, integration, or end-to-end
+  coverage derived from the task. It may change test fixtures and test tooling,
+  but must not change product behaviour to make tests pass.
+- Use `reviewer` after implementation and testing. It is read-only by default:
+  it reports missing criteria, regressions, security risks, and insufficient
+  coverage. The orchestrator assigns corrections to another agent.
 
-- Keep components small and focused on a single responsibility
-- Use `input()` and `output()` functions instead of decorators
-- Use `model()` for two-way bound properties with `[(prop)]` syntax instead of pairing `input()` with `output()`
-- Use `computed()` for derived state
-- Use `linkedSignal()` for state derived from multiple reactive sources that must stay synchronized
-- Prefer inline templates for small components
-- Prefer Signal Forms (`@angular/forms/signals`) for new forms. They are stable in Angular v22+ and provide signal-based state, type-safe field access, and schema-based validation
-- When not using Signal Forms, prefer Reactive forms instead of Template-driven ones
-- Do NOT use `ngClass`, use `class` bindings instead
-- Do NOT use `ngStyle`, use `style` bindings instead
-- Do NOT import `CommonModule`, import only the directives and pipes the template uses, such as `AsyncPipe` or `DatePipe`
-- When using external templates/styles, use paths relative to the component TS file.
+## Completion gate
 
-## State Management
+Never mark a task complete unless:
 
-- Use signals for local component state
-- Use `computed()` for derived state
-- Keep state transformations pure and predictable
-- Do NOT use `mutate` on signals, use `update` or `set` instead
+- every explicit acceptance criterion is evidenced by the implementation;
+- relevant tests were added or updated and pass;
+- lint, typecheck, build, and project-specific checks pass when available;
+- the reviewer reports no unresolved blocking issue;
+- `specs/tasks.md` records the result and remaining non-blocking risks.
 
-## Templates
+## Stop conditions
 
-- Keep templates simple and avoid complex logic
-- Use native control flow (`@if`, `@for`, `@switch`) instead of `*ngIf`, `*ngFor`, `*ngSwitch`
-- Use the async pipe to handle observables
-- Do not assume globals like (`new Date()`) are available.
+Stop and ask the user when acceptance criteria conflict, a required product
+decision is absent, credentials or a production action are needed, or the task
+requires a destructive data migration without an approved rollback plan.
 
-## Services
+## Project commands
 
-- Design services around a single responsibility
-- Use the `providedIn: 'root'` option for singleton services
-- Prefer the `@Service` decorator over `@Injectable({providedIn: 'root'})` for new singleton services (Angular v22+)
-- Use the `inject()` function instead of constructor injection
+- Install dependencies: `npm install`
+- Lint/type-check all workspace apps: `npm run lint`
+- Build all workspace apps: `npm run build`
+- Test all workspace apps: `npm test`
+- Start the NestJS backend: `npm run start:api`
+- Start the Angular frontend: `npm run start:web`
+
+Run project commands from the repository root after dependency installation.
+`npm run lint`, `npm test`, and `npm run build` cover both the NestJS backend
+and Angular frontend scaffolds where applicable. The current scaffold does not
+include Supabase, authentication, RLS, or other external service validation, so
+these baseline commands and local start commands do not require Supabase local
+services or application environment variables.
