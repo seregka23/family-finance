@@ -1,21 +1,22 @@
-<dialog #dialog class="transaction-dialog" aria-labelledby="transaction-title" (cancel)="onCancel($event)">
+<dialog #dialog class="transaction-dialog" aria-labelledby="transaction-dialog-title" (cancel)="onCancel($event)">
   <form (submit)="submit($event)" novalidate>
     <div class="transaction-dialog-head">
-      <h2 id="transaction-title">Добавить операцию</h2>
-      <button type="button" class="transaction-close" (click)="close()" [disabled]="busy()" aria-label="Закрыть">×</button>
+      <h2 id="transaction-dialog-title">Добавить операцию</h2>
+      <button type="button" class="transaction-close" (click)="close()" [disabled]="busy()" aria-label="Закрыть"><app-icon name="close" [size]="20" /></button>
     </div>
+    <p class="required-fields">* Обязательные поля</p>
     <fieldset [disabled]="busy()" class="transaction-fields">
       <label>Тип операции<select [formField]="fields.operationType"><option value="Расход">Расход</option><option value="Доход">Доход</option></select></label>
-      <label>Название<input [formField]="fields.title" /></label>
-      <label>Сумма<input [formField]="fields.amount" type="text" inputmode="decimal" placeholder="Например, 1250,50" /></label>
+      <label>Название <span aria-hidden="true">*</span><input id="transaction-title" [formField]="fields.title" [attr.aria-invalid]="attempted() && validationErrors().title ? 'true' : null" [attr.aria-describedby]="attempted() && validationErrors().title ? 'transaction-title-error' : null" />@if (attempted() && validationErrors().title) { <small id="transaction-title-error" class="field-error">{{ validationErrors().title }}</small> }</label>
+      <label>Сумма <span aria-hidden="true">*</span><input id="transaction-amount" [formField]="fields.amount" [attr.aria-invalid]="attempted() && validationErrors().amount ? 'true' : null" [attr.aria-describedby]="attempted() && validationErrors().amount ? 'transaction-amount-error' : null" type="text" inputmode="decimal" placeholder="Например, 1250,50" />@if (attempted() && validationErrors().amount) { <small id="transaction-amount-error" class="field-error">{{ validationErrors().amount }}</small> }</label>
       <label>Валюта<select [formField]="fields.currency"><option>RSD</option><option>EUR</option><option>USD</option><option>RUB</option></select></label>
-      <label>Дата<input [formField]="fields.operationDate" type="date" /></label>
-      <label>Время <small>(необязательно)</small><input [formField]="fields.operationTime" type="time" /></label>
+      <label>Дата <span aria-hidden="true">*</span><input id="transaction-operationDate" [formField]="fields.operationDate" [attr.aria-invalid]="attempted() && validationErrors().operationDate ? 'true' : null" [attr.aria-describedby]="attempted() && validationErrors().operationDate ? 'transaction-operationDate-error' : null" type="date" />@if (attempted() && validationErrors().operationDate) { <small id="transaction-operationDate-error" class="field-error">{{ validationErrors().operationDate }}</small> }</label>
+      <label>Время <small>(необязательно)</small><input id="transaction-operationTime" [formField]="fields.operationTime" [attr.aria-invalid]="attempted() && validationErrors().operationTime ? 'true' : null" [attr.aria-describedby]="attempted() && validationErrors().operationTime ? 'transaction-operationTime-error' : null" type="time" />@if (attempted() && validationErrors().operationTime) { <small id="transaction-operationTime-error" class="field-error">{{ validationErrors().operationTime }}</small> }</label>
       <label>Счёт <small>(необязательно)</small><select [formField]="fields.accountId" (change)="accountChanged($event)"><option value="">Без счёта</option>@for (account of options().accounts; track account.id) { <option [value]="account.id" [disabled]="!['RSD', 'EUR', 'USD', 'RUB'].includes(account.currency)">{{ account.name }} · {{ account.currency }}</option> }</select></label>
       <p class="transaction-hint">{{ model().accountId ? (model().operationType === 'Расход' ? 'Сумма будет вычтена из баланса счёта.' : 'Сумма будет добавлена к балансу счёта.') : 'Без счёта операция не изменит баланс.' }}</p>
       <label>Категория <small>(необязательно)</small><select [formField]="fields.categoryId"><option value="">Без категории</option>@for (category of options().categories; track category.id) { <option [value]="category.id">{{ category.name }}{{ category.section ? ' · ' + category.section : '' }}</option> }</select></label>
-      <label>Магазин или получатель <small>(необязательно)</small><input [formField]="fields.merchant" /></label>
-      <label>Комментарий <small>(необязательно)</small><textarea [formField]="fields.note"></textarea></label>
+      <label>Магазин или получатель <small>(необязательно)</small><input id="transaction-merchant" [formField]="fields.merchant" [attr.aria-invalid]="attempted() && validationErrors().merchant ? 'true' : null" [attr.aria-describedby]="attempted() && validationErrors().merchant ? 'transaction-merchant-error' : null" />@if (attempted() && validationErrors().merchant) { <small id="transaction-merchant-error" class="field-error">{{ validationErrors().merchant }}</small> }</label>
+      <label>Комментарий <small>(необязательно)</small><textarea id="transaction-note" [formField]="fields.note" [attr.aria-invalid]="attempted() && validationErrors().note ? 'true' : null" [attr.aria-describedby]="attempted() && validationErrors().note ? 'transaction-note-error' : null"></textarea>@if (attempted() && validationErrors().note) { <small id="transaction-note-error" class="field-error">{{ validationErrors().note }}</small> }</label>
     </fieldset>
     @if (loading()) { <p role="status">Загружаем счета и категории…</p> }
     @if (error()) { <p class="transaction-error" role="alert">{{ error() }}</p> }

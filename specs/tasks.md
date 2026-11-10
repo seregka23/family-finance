@@ -1,58 +1,33 @@
-# Add new transactions
+# Review and fix the site with Impeccable
 
-## Task
+## Task and acceptance criteria
 
-Add a function for signed-in family members to create transactions in the D1
-finance workspace. The user explicitly confirmed that selecting an account must
-automatically update its balance.
+Review the existing site and implement concrete usability/accessibility fixes.
+Preserve PRODUCT.md/DESIGN.md, the dark month-first hierarchy and pinned mobile
+navigation. Use local synthetic data; do not modify production finances.
 
-## Acceptance criteria
-
-- Provide an accessible form on the operations page for expenses and income,
-  exact amounts, currency, date, title and optional account/category/time/notes.
-- Support a completely empty workspace by allowing an unlinked transaction.
-- Enforce session authorization, configured Origin, JSON/body limits and strict
-  server-side field/reference/currency/date/monetary validation before writes.
-- Store records as manual transactions with creator metadata and show them in the
-  journal, monthly plan actuals and expense reports.
-- Apply expense/income account deltas atomically with insertion; preserve unknown
-  balances and imported records, and reject unreportable resulting balances.
-- Prevent duplicate inserts or balance changes on retries/concurrent submissions;
-  reject reuse of an ID for different content or another creator.
-- Preserve the form on recoverable errors, handle expired/denied sessions safely,
-  and refresh filters/date range so the saved transaction is visible.
-- Add a forward-only D1 migration and meaningful API/Angular/real Worker tests;
-  pass both builds, TypeScript, packaging and read-only review.
-- Apply only schema preparation remotely; never create test transactions in the
-  user's production financial data.
+- Inspect signed-in routes and authentication on desktop/mobile.
+- Fix identified field validation, touch targets, dialog and empty-state issues.
+- Preserve authentication, transaction and D1 behavior.
+- Add focused regressions; pass production builds, tests, typecheck, packaging and
+  read-only review. Record findings and remaining limits in docs/ui-review.md.
 
 ## Status
 
-Implementation complete. Read-only review has no remaining blocking findings.
+Complete. Read-only review has no unresolved code blockers; the final requested
+mobile Cancel pointer check passes after the footer sizing correction.
 
-Validation:
+- `npm test`: both production builds, 40 Node/model/API/runtime tests and 37
+  Angular tests pass (77 total).
+- `npm run typecheck`, worker rebuild after the final CSS fix, deployment dry run
+  and `git diff --check` pass. There is no separate lint script in this project.
+- Initial 17-frame audit and bounded 20-state confirmation used local synthetic
+  data. Confirmation reported no axe violations, horizontal overflow or page
+  errors; field errors focus the relevant input. The inner select height was
+  corrected after confirmation. Mobile modal scrolling and real Cancel click
+  were separately verified after the final correction.
+- No production data, auth/backend contracts, migrations or dependencies changed.
 
-- `npm test`: both production builds, 40 Node/model/API/runtime tests and
-  29 Angular component tests passed (69 total).
-- Tests cover concurrent/idempotent inserts, correct income/expense deltas,
-  empty workspaces, nullable balances, exact decimals, authorization, Origin/body
-  guards, invalid references and rollback of reporting/availability overflows.
-- The actual local Worker+D1 test creates transactions through HTTP and verifies
-  balances, monthly plan actuals, reports and concurrent monthly-limit rejection.
-- UI tests cover successful refresh, currency locking, options reload failures,
-  retry IDs, busy/cancel behavior and hidden cached data after auth failures.
-- Strict TypeScript, generated types and whitespace checks passed.
-- Local migration command and deployment dry run passed: 36 browser assets,
-  1376.24 KiB module upload (314.94 KiB gzip).
-
-Production preparation: applied and recorded `0004_manual_transactions.sql`.
-Verified foreign-key integrity and unchanged operation/account row counts. No
-production test transaction was created and no existing balance was modified.
-The new code becomes live after PR merge and the existing deployment pipeline.
-
-This is the first application-owned finance write endpoint. Account/category
-administration and transaction editing, transfers, deletion, receipt entry and
-reserve spending remain outside this task. Imported data still does not adjust
-account snapshots automatically. Manual insert guards reject monthly gross or
-known availability outside the reporting bound so successful writes cannot make
-those reports unreadable.
+See docs/ui-review.md for findings, corrections, scores and limits. Automated
+checks do not constitute full WCAG certification; broader assistive-technology
+and device coverage remain non-blocking follow-up work. No deployment performed.

@@ -150,4 +150,48 @@ describe('Routed finance workspace', () => {
     expect(fixture.nativeElement.querySelector('.transaction-error')).not.toBeNull();
   });
 
+  it('offers adding the first operation in a truly empty journal', async () => {
+    TestBed.overrideProvider(FinanceApi, { useValue: {
+      operations: () => of({ ...fixtureData, operations: [] }),
+      transactionOptions: () => of({ accounts: [], categories: [] }), createOperation: vi.fn()
+    } });
+    const fixture = TestBed.createComponent(App); await TestBed.inject(Router).navigateByUrl('/operations'); await fixture.whenStable();
+    const empty: HTMLElement = fixture.nativeElement.querySelector('.empty');
+    expect(empty.textContent).toContain('Добавить операцию');
+    expect(empty.textContent).not.toContain('Сбросить фильтры');
+    empty.querySelector<HTMLButtonElement>('button')!.click(); await fixture.whenStable();
+    expect(fixture.nativeElement.querySelector('app-transaction-dialog')).not.toBeNull();
+    expect(TestBed.inject(FinanceApi).createOperation).not.toHaveBeenCalled();
+  });
+  it('offers resetting filters when existing journal entries are hidden by search', async () => {
+    const fixture = TestBed.createComponent(App); await TestBed.inject(Router).navigateByUrl('/operations'); await fixture.whenStable();
+    const workspace = TestBed.inject(FinanceWorkspace); workspace.query.set('no matching purchase'); await fixture.whenStable();
+    const empty: HTMLElement = fixture.nativeElement.querySelector('.empty');
+    expect(empty.textContent).toContain('Сбросить фильтры');
+    empty.querySelector<HTMLButtonElement>('button')!.click(); await fixture.whenStable();
+    expect(workspace.query()).toBe(''); expect(fixture.nativeElement.querySelectorAll('.trow')).toHaveLength(2);
+  });
+
+  it('shows first-use journal actions only after data loads successfully', async () => {
+    const requests: Subject<FinanceData>[] = [];
+    TestBed.overrideProvider(FinanceApi, { useValue: { operations: () => {
+      const response = new Subject<FinanceData>(); requests.push(response); return response;
+    } } });
+    const fixture = TestBed.createComponent(App); await TestBed.inject(Router).navigateByUrl('/operations');
+    const workspace = TestBed.inject(FinanceWorkspace);
+    await vi.waitFor(() => expect(requests).toHaveLength(1)); fixture.detectChanges();
+    expect(workspace.state()).toBe('loading');
+    expect(fixture.nativeElement.querySelector('.empty')).toBeNull();
+    expect(fixture.nativeElement.querySelector('.transaction-add')).toBeNull();
+    requests[0].error(new HttpErrorResponse({ status: 503 })); await fixture.whenStable();
+    expect(workspace.state()).toBe('error');
+    expect(fixture.nativeElement.querySelector('.empty')).toBeNull();
+    expect(fixture.nativeElement.querySelector('.transaction-add')).toBeNull();
+    workspace.refreshData(); await vi.waitFor(() => expect(requests).toHaveLength(2));
+    requests[1].next({ ...fixtureData, operations: [] }); await fixture.whenStable();
+    expect(workspace.state()).toBe('ready');
+    expect(fixture.nativeElement.querySelector('.empty')?.textContent).toContain('Добавить операцию');
+    expect(fixture.nativeElement.querySelector('.transaction-add')).not.toBeNull();
+  });
+
 });
