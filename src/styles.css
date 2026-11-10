@@ -2155,14 +2155,6 @@ select:focus-visible {
     gap: 12px;
   }
 }
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *:before,
-  *:after {
-    animation-duration: 0.01ms !important;
-    transition-duration: 0.01ms !important;
-  }
-}
 .warning {
   color: var(--warning) !important;
 }
@@ -3337,12 +3329,16 @@ dd {
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  *,
-  *:before,
-  *:after {
-    animation: none !important;
-    transition: none !important;
-    scroll-behavior: auto !important;
+  html { scroll-behavior: auto; }
+  .enter, .metrics article, .bar i, .backdrop, .backdrop > aside, .refresh-button:disabled svg {
+    animation: none;
+    transform: none;
+    opacity: 1;
+  }
+  .cta:hover, .account-card:hover, .latest:hover > svg { transform: none; }
+  nav button, nav button:after, .refresh-button, .cta, .account-card, .latest > svg {
+    transition-property: color, background-color, border-color;
+    transition-duration: 0.12s;
   }
 }
 
@@ -4155,7 +4151,7 @@ dd {
 .signout:disabled, button.auth-link:disabled { opacity: .6; cursor: wait; }
 .auth-action-error { color: var(--warning); margin: 12px 24px; }
 .auth-page { min-height: 100dvh; display: grid; place-items: center; padding: 24px; }
-.auth-card { width: min(100%, 440px); padding: 32px; border: 1px solid var(--border2); border-radius: 20px; background: var(--surface); }
+.auth-card { width: min(100%, 440px); padding: 32px; border: 1px solid var(--border2); border-radius: 16px; background: var(--surface); }
 .auth-card h1 { font-size: 28px; margin: 8px 0; }
 .auth-card > p { color: var(--muted); line-height: 1.5; }
 .auth-card .auth-brand { color: var(--mint); font-weight: 700; }
@@ -4166,19 +4162,21 @@ dd {
 .auth-card input:focus-visible, .auth-card button:focus-visible, .auth-card a:focus-visible { outline: 2px solid var(--mint); outline-offset: 2px; }
 .auth-card form button { min-height: 44px; margin-top: 14px; border: 0; border-radius: 9px; background: var(--mint); color: #07120f; font-weight: 700; cursor: pointer; }
 .auth-card form button:disabled { opacity: .6; cursor: wait; }
-.auth-card a { color: var(--mint); }
+.auth-card a { color: var(--mint); display: inline-flex; align-items: center; min-height: 44px; text-decoration: underline; text-underline-offset: 3px; }
+.auth-card .field-error, .transaction-fields .field-error { color: var(--warning); }
 .auth-card .auth-error { color: var(--warning); margin: 8px 0 0; }
 
 /* New transaction */
 .transaction-actions { display: flex; justify-content: flex-end; margin: 0 0 18px; }
 .transaction-add { cursor: pointer; }
+.period-select, .period-select select { min-height: 44px; }
 .transaction-success { color: var(--mint); margin: 12px 0; }
 .transaction-error { color: var(--warning); margin: 12px 0; }
 .transaction-error a { color: var(--mint); }
-.transaction-dialog { width: min(620px, calc(100% - 32px)); max-height: calc(100dvh - 32px); margin: auto; border: 1px solid var(--border2); border-radius: 18px; padding: 24px; color: var(--text); background: var(--surface); }
+.transaction-dialog { width: min(620px, calc(100% - 32px)); max-height: calc(100dvh - 32px); overflow-y: auto; overscroll-behavior: contain; margin: auto; border: 1px solid var(--border2); border-radius: 16px; padding: 24px; color: var(--text); background: var(--surface); }
 .transaction-dialog::backdrop { background: rgba(0, 0, 0, .7); }
 .transaction-dialog-head, .transaction-dialog-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.transaction-dialog-head h2 { margin: 0; }
+.transaction-dialog-head h2 { margin: 0; font-size: 20px; font-weight: 700; }
 .transaction-close { background: transparent; color: var(--text); border: 0; font-size: 28px; min-width: 44px; min-height: 44px; cursor: pointer; }
 .transaction-fields { border: 0; padding: 0; min-width: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 18px 0; }
 .transaction-fields label { display: grid; gap: 6px; font-weight: 600; }
@@ -4186,6 +4184,7 @@ dd {
 .transaction-fields input, .transaction-fields select, .transaction-fields textarea { width: 100%; min-height: 44px; padding: 10px; border: 1px solid var(--border2); border-radius: 8px; background: var(--surface); color: var(--text); }
 .transaction-fields textarea { min-height: 80px; resize: vertical; }
 .transaction-hint { align-self: end; font-size: 14px; }
-.transaction-dialog-actions { justify-content: flex-end; margin-top: 20px; }
+.transaction-dialog-actions { justify-content: flex-end; flex-wrap: wrap; margin-top: 20px; }
+.transaction-dialog-actions .cta { width: auto; }
 .transaction-dialog :focus-visible { outline: 2px solid var(--mint); outline-offset: 2px; }
 @media (max-width: 560px) { .transaction-fields { grid-template-columns: 1fr; } .transaction-dialog { padding: 18px; } }

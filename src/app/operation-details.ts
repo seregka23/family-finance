@@ -1,5 +1,6 @@
 import { DOCUMENT } from '@angular/common';
 import { Component, ElementRef, afterRenderEffect, inject, model, viewChild } from '@angular/core';
+import { lockDialogScroll } from './dialog-scroll-lock';
 import { categoryTone, money, receiptItemCountLabel } from './finance-format';
 import type { Operation } from './finance-types';
 import { operationDate } from './models/finance-ui-model';
@@ -26,13 +27,12 @@ export class OperationDetails {
       const dialog = this.dialog()?.nativeElement;
       if (!dialog || !this.operation()) return;
       const focused = this.document.activeElement as HTMLElement | null;
-      const overflow = this.document.body.style.overflow;
-      this.document.body.style.overflow = 'hidden';
+      const unlock = lockDialogScroll(this.document);
       dialog.showModal();
       dialog.querySelector<HTMLButtonElement>('button')?.focus();
       onCleanup(() => {
         dialog.close();
-        this.document.body.style.overflow = overflow;
+        unlock();
         focused?.focus();
       });
     });

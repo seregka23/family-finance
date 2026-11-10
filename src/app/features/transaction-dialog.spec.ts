@@ -1,3 +1,5 @@
+import { OperationDetails } from '../operation-details';
+import { fixtureData } from '../testing/finance-fixtures';
 import { HttpErrorResponse } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
 import { of, Subject } from 'rxjs';
@@ -81,6 +83,48 @@ describe('Manual transaction dialog', () => {
     submit(component); expect(createOperation).not.toHaveBeenCalled();
     component.loadOptions(); await fixture.whenStable();
     expect(fixture.nativeElement.querySelector('button[type=submit]')?.disabled).toBe(false);
+  });
+
+  it('links every invalid field to an inline error, focuses it and preserves the remaining values', async () => {
+    const fixture = TestBed.createComponent(TransactionDialog); await fixture.whenStable();
+    const component = fixture.componentInstance; const host: HTMLElement = fixture.nativeElement;
+    const ids = [...host.querySelectorAll('[id]')].map((element) => element.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    for (const [field, value] of [
+      ['title', ' '], ['amount', '0'], ['operationDate', '2026-02-30'],
+      ['operationTime', '24:01'], ['merchant', 'm'.repeat(201)], ['note', 'n'.repeat(2001)]
+    ]) {
+      component.model.update((previous) => ({ ...previous, title: 'Preserved purchase', amount: '12,34', operationDate: '2026-11-10', operationTime: '', merchant: 'Shop', note: 'Preserved note', [field]: value }));
+      await fixture.whenStable(); submit(component); await fixture.whenStable();
+      const input = host.querySelector<HTMLElement>(`#transaction-${field}`)!;
+      expect(input.getAttribute('aria-invalid')).toBe('true');
+      expect(document.activeElement).toBe(input);
+      const references = input.getAttribute('aria-describedby')?.split(/\s+/).filter(Boolean) ?? [];
+      expect(references.length).toBeGreaterThan(0);
+      for (const reference of references) expect(host.querySelector(`[id="${reference}"]`)?.textContent?.trim()).toBeTruthy();
+      expect(host.textContent).not.toContain('Обновить счета и категории');
+      expect(attempts).toHaveLength(0);
+    }
+    expect(component.model().title).toBe('Preserved purchase');
+  });
+  it('restores background scrolling and trigger focus when the dialog is destroyed', async () => {
+    const priorOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'scroll';
+    const trigger = document.createElement('button'); document.body.append(trigger); trigger.focus();
+    const fixture = TestBed.createComponent(TransactionDialog); await fixture.whenStable();
+    expect(document.body.style.overflow).toBe('hidden');
+    fixture.destroy();
+    expect(document.body.style.overflow).toBe('scroll'); expect(document.activeElement).toBe(trigger);
+    trigger.remove(); document.body.style.overflow = priorOverflow;
+  });
+
+  it('keeps scrolling locked until the last dialog closes regardless of teardown order', async () => {
+    const previous = document.body.style.overflow; document.body.style.overflow = 'scroll';
+    const transaction = TestBed.createComponent(TransactionDialog); await transaction.whenStable();
+    const details = TestBed.createComponent(OperationDetails); details.componentRef.setInput('operation', fixtureData.operations[0]); await details.whenStable();
+    transaction.destroy(); expect(document.body.style.overflow).toBe('hidden');
+    details.destroy(); expect(document.body.style.overflow).toBe('scroll');
+    document.body.style.overflow = previous;
   });
 
 });

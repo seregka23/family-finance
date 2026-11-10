@@ -19,7 +19,8 @@ describe.each(['login', 'register'])('In-app %s form', (mode) => {
     form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
     await fixture.whenStable();
     http.expectNone(`/api/auth/${mode}`);
-    expect(host.querySelector('[role=alert]')).not.toBeNull();
+    expect(host.querySelector('#auth-email-error')).not.toBeNull();
+    expect(host.querySelector('#auth-email')?.getAttribute('aria-invalid')).toBe('true');
     const fill = async (id: string, value: string) => {
       const input = host.querySelector<HTMLInputElement>(`#${id}`)!;
       input.value = value; input.dispatchEvent(new Event('input')); await fixture.whenStable();
@@ -33,7 +34,7 @@ describe.each(['login', 'register'])('In-app %s form', (mode) => {
       form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
       await fixture.whenStable();
       http.expectNone('/api/auth/register');
-      expect(host.textContent).toContain('Пароли не совпадают');
+      expect(host.querySelector('#auth-confirm-error')?.textContent).toContain('совпадать');
       await fill('auth-confirm', 'Correct horse battery staple!');
     }
     form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
@@ -52,6 +53,39 @@ describe.each(['login', 'register'])('In-app %s form', (mode) => {
     expect(host.querySelector<HTMLButtonElement>('button')?.disabled).toBe(false);
     http.verify();
   });
+  it('associates field validation with inputs and focuses the first invalid field without clearing values', async () => {
+    const fixture = TestBed.createComponent(AuthPage); await fixture.whenStable();
+    const host: HTMLElement = fixture.nativeElement;
+    const form = host.querySelector('form')!;
+    const submit = async () => { form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })); await fixture.whenStable(); };
+    const fill = async (id: string, value: string) => {
+      const input = host.querySelector<HTMLInputElement>(`#${id}`)!; input.value = value; input.dispatchEvent(new Event('input')); await fixture.whenStable();
+    };
+    const expectInvalid = (id: string) => {
+      const input = host.querySelector<HTMLInputElement>(`#${id}`)!;
+      expect(input.getAttribute('aria-invalid')).toBe('true');
+      const references = input.getAttribute('aria-describedby')?.split(/\s+/).filter(Boolean) ?? [];
+      expect(references.length).toBeGreaterThan(0);
+      for (const reference of references) expect(host.querySelector(`[id="${reference}"]`)?.textContent?.trim()).toBeTruthy();
+      expect(document.activeElement).toBe(input);
+    };
+    await submit(); expectInvalid('auth-email');
+    await fill('auth-email', 'not-an-email'); await submit(); expectInvalid('auth-email');
+    await fill('auth-email', 'person@example.test');
+    if (mode === 'register') await fill('auth-password', 'short');
+    await submit(); expectInvalid('auth-password');
+    expect(host.querySelector<HTMLInputElement>('#auth-email')!.value).toBe('person@example.test');
+    if (mode === 'register') {
+      await fill('auth-password', 'Correct horse battery staple!');
+      await fill('auth-confirm', 'Different horse battery staple!');
+      await submit(); expectInvalid('auth-confirm');
+      await fill('auth-confirm', 'Correct horse battery staple!');
+      await fill('auth-token', 'invalid'); await submit(); expectInvalid('auth-token');
+      expect(host.querySelector<HTMLInputElement>('#auth-password')!.value).toBe('Correct horse battery staple!');
+    }
+    TestBed.inject(HttpTestingController).expectNone(`/api/auth/${mode}`);
+  });
+
 });
 
 describe('Private invitation fragment', () => {

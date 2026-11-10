@@ -18,6 +18,7 @@ export class AuthPage {
   readonly returnTo = safeReturnTo(this.route.snapshot.queryParamMap.get('return_to'));
   readonly busy = signal(false);
   readonly error = signal('');
+  readonly attempted = signal(false);
   email = '';
   password = '';
   confirmPassword = '';
@@ -40,13 +41,14 @@ export class AuthPage {
   submit(form: NgForm) {
     if (this.busy()) return;
     this.error.set('');
-    if (form.invalid) {
+    this.attempted.set(true);
+    const mismatched = this.register && this.password !== this.confirmPassword;
+    if (form.invalid || mismatched) {
       form.control.markAllAsTouched();
-      this.error.set('Проверьте заполнение полей.');
-      return;
-    }
-    if (this.register && this.password !== this.confirmPassword) {
-      this.error.set('Пароли не совпадают.');
+      const fields = ['name', 'email', 'password', 'confirmPassword', 'token'];
+      const first = fields.find((name) => form.controls[name]?.invalid || (name === 'confirmPassword' && mismatched));
+      const ids: Record<string, string> = { name: 'auth-name', email: 'auth-email', password: 'auth-password', confirmPassword: 'auth-confirm', token: 'auth-token' };
+      if (first) this.document.getElementById(ids[first])?.focus();
       return;
     }
     this.busy.set(true);

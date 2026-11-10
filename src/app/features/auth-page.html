@@ -3,21 +3,27 @@
     <p class="auth-brand">Семейные финансы</p>
     <h1 id="auth-title">{{ register ? 'Регистрация' : 'Вход' }}</h1>
     <p>{{ register ? 'Для регистрации потребуется приглашение.' : 'Войдите, чтобы открыть семейный бюджет.' }}</p>
+    <p class="required-fields">* Обязательные поля</p>
     <form #form="ngForm" (ngSubmit)="submit(form)" novalidate>
       @if (register) {
         <label for="auth-name">Имя <span>(необязательно)</span></label>
-        <input id="auth-name" name="name" [(ngModel)]="name" autocomplete="name" maxlength="100" />
+        <input id="auth-name" name="name" [(ngModel)]="name" #nameField="ngModel" [attr.aria-invalid]="attempted() && nameField.invalid ? 'true' : null" [attr.aria-describedby]="attempted() && nameField.invalid ? 'auth-name-error' : null" autocomplete="name" maxlength="100" />
+        @if (attempted() && nameField.invalid) { <small id="auth-name-error" class="field-error">Имя должно содержать не более 100 символов.</small> }
       }
-      <label for="auth-email">Электронная почта</label>
-      <input id="auth-email" name="email" [(ngModel)]="email" type="email" autocomplete="username" required email maxlength="254" />
-      <label for="auth-password">Пароль</label>
-      <input id="auth-password" name="password" [(ngModel)]="password" type="password" [autocomplete]="register ? 'new-password' : 'current-password'" required [minlength]="register ? 12 : 1" maxlength="128" />
+      <label for="auth-email">Электронная почта <span aria-hidden="true">*</span></label>
+      <input id="auth-email" name="email" [(ngModel)]="email" #emailField="ngModel" [attr.aria-invalid]="attempted() && emailField.invalid ? 'true' : null" [attr.aria-describedby]="attempted() && emailField.invalid ? 'auth-email-error' : null" type="email" autocomplete="username" required email maxlength="254" />
+      @if (attempted() && emailField.invalid) { <small id="auth-email-error" class="field-error">Укажите корректный адрес почты.</small> }
+      <label for="auth-password">Пароль <span aria-hidden="true">*</span></label>
+      <input id="auth-password" name="password" [(ngModel)]="password" #passwordField="ngModel" [attr.aria-invalid]="attempted() && passwordField.invalid ? 'true' : null" [attr.aria-describedby]="register ? (attempted() && passwordField.invalid ? 'auth-password-help auth-password-error' : 'auth-password-help') : (attempted() && passwordField.invalid ? 'auth-password-error' : null)" type="password" [autocomplete]="register ? 'new-password' : 'current-password'" required [minlength]="register ? 12 : 1" maxlength="128" />
+      @if (attempted() && passwordField.invalid) { <small id="auth-password-error" class="field-error">{{ register ? 'Введите пароль длиной от 12 до 128 символов.' : 'Введите пароль.' }}</small> }
       @if (register) {
-        <small>Не менее 12 символов.</small>
-        <label for="auth-confirm">Повторите пароль</label>
-        <input id="auth-confirm" name="confirmPassword" [(ngModel)]="confirmPassword" type="password" autocomplete="new-password" required minlength="12" maxlength="128" />
-        <label for="auth-token">Код приглашения</label>
-        <input id="auth-token" name="token" [(ngModel)]="token" type="password" autocomplete="off" required maxlength="64" pattern="[0-9a-fA-F]{64}" aria-describedby="auth-token-help" />
+        <small id="auth-password-help">Не менее 12 символов.</small>
+        <label for="auth-confirm">Повторите пароль <span aria-hidden="true">*</span></label>
+        <input id="auth-confirm" name="confirmPassword" [(ngModel)]="confirmPassword" #confirmField="ngModel" [attr.aria-invalid]="attempted() && (confirmField.invalid || password !== confirmPassword) ? 'true' : null" [attr.aria-describedby]="attempted() && (confirmField.invalid || password !== confirmPassword) ? 'auth-confirm-error' : null" type="password" autocomplete="new-password" required minlength="12" maxlength="128" />
+        @if (attempted() && (confirmField.invalid || password !== confirmPassword)) { <small id="auth-confirm-error" class="field-error">Повторите пароль: оба значения должны совпадать.</small> }
+        <label for="auth-token">Код приглашения <span aria-hidden="true">*</span></label>
+        <input id="auth-token" name="token" [(ngModel)]="token" #tokenField="ngModel" [attr.aria-invalid]="attempted() && tokenField.invalid ? 'true' : null" [attr.aria-describedby]="attempted() && tokenField.invalid ? 'auth-token-help auth-token-error' : 'auth-token-help'" type="password" autocomplete="off" required maxlength="64" pattern="[0-9a-fA-F]{64}" />
+        @if (attempted() && tokenField.invalid) { <small id="auth-token-error" class="field-error">Введите полный код приглашения.</small> }
         <small id="auth-token-help">Код состоит из 64 шестнадцатеричных символов.</small>
       }
       @if (error()) { <p class="auth-error" role="alert">{{ error() }}</p> }
