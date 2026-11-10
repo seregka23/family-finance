@@ -22,7 +22,7 @@ Reserve `saved_minor` is the current reserved balance snapshot; `spent_minor` is
 
 `GET /api/expenses?month=YYYY-MM` reads every expense in the requested calendar month and applies the existing daily/category/merchant aggregation, report exclusion, review status, and current-date cutoff. Neither endpoint has a 100-record cap. Queries are prepared with bound user parameters. SQL/schema errors or a missing DB binding return HTTP 503; a correctly migrated empty database returns empty collections.
 
-The API contract remains read-only. Application session verification and current user role/status checks run before any D1 query. Authorized family members share the configured finance database; no per-user data partitioning is introduced.
+Finance reads and transaction creation require authentication. Application session verification and current user role/status checks run before any D1 query. Authorized family members share the configured finance database; no per-user data partitioning is introduced.
 
 
 `0002_auth.sql` adds users, hashed sessions, email-bound single-use invitations
@@ -36,3 +36,16 @@ rebuilding tables or changing existing sessions/invitations. Existing records
 default to `pbkdf2-sha256-hmac-v1`; new records explicitly use `scrypt-hmac-v2`.
 The original `password_version` column remains an immutable compatibility marker.
 Hash verification uses `password_scheme` and never silently lowers legacy work.
+
+
+`0004_manual_transactions.sql` adds `entry_method`, `created_by`, `created_at`
+and `request_fingerprint` to operations. Imported rows default to `import` and
+never change existing account snapshots. Manual rows retain the legacy `source`
+compatibility field, but their UI/API source is `Вручную`. A single INSERT and
+its trigger update a selected known account balance atomically, with precision
+and active/currency guards. NULL balances remain unknown. The operation primary
+key and creator-bound normalized fingerprint provide retry idempotency.
+
+This is insertion bookkeeping, not a general ledger rewrite: direct SQL updates
+or deletes need explicit balance reconciliation. Reserve allocation/payment and
+receipt mutation are not exposed by the transaction creation API.

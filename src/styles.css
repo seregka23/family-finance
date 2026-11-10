@@ -4168,3 +4168,24 @@ dd {
 .auth-card form button:disabled { opacity: .6; cursor: wait; }
 .auth-card a { color: var(--mint); }
 .auth-card .auth-error { color: var(--warning); margin: 8px 0 0; }
+
+/* New transaction */
+.transaction-actions { display: flex; justify-content: flex-end; margin: 0 0 18px; }
+.transaction-add { cursor: pointer; }
+.transaction-success { color: var(--mint); margin: 12px 0; }
+.transaction-error { color: var(--warning); margin: 12px 0; }
+.transaction-error a { color: var(--mint); }
+.transaction-dialog { width: min(620px, calc(100% - 32px)); max-height: calc(100dvh - 32px); margin: auto; border: 1px solid var(--border2); border-radius: 18px; padding: 24px; color: var(--text); background: var(--surface); }
+.transaction-dialog::backdrop { background: rgba(0, 0, 0, .7); }
+.transaction-dialog-head, .transaction-dialog-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.transaction-dialog-head h2 { margin: 0; }
+.transaction-close { background: transparent; color: var(--text); border: 0; font-size: 28px; min-width: 44px; min-height: 44px; cursor: pointer; }
+.transaction-fields { border: 0; padding: 0; min-width: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 18px 0; }
+.transaction-fields label { display: grid; gap: 6px; font-weight: 600; }
+.transaction-fields small, .transaction-hint { color: var(--muted); font-weight: 400; }
+.transaction-fields input, .transaction-fields select, .transaction-fields textarea { width: 100%; min-height: 44px; padding: 10px; border: 1px solid var(--border2); border-radius: 8px; background: var(--surface); color: var(--text); }
+.transaction-fields textarea { min-height: 80px; resize: vertical; }
+.transaction-hint { align-self: end; font-size: 14px; }
+.transaction-dialog-actions { justify-content: flex-end; margin-top: 20px; }
+.transaction-dialog :focus-visible { outline: 2px solid var(--mint); outline-offset: 2px; }
+@media (max-width: 560px) { .transaction-fields { grid-template-columns: 1fr; } .transaction-dialog { padding: 18px; } }

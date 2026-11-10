@@ -4,6 +4,18 @@
     title="Операции"
     text="Доходы и расходы за выбранный период."
   />
+  <div class="transaction-actions">
+    <button type="button" class="cta transaction-add" (click)="openAdd()">＋ Добавить операцию</button>
+  </div>
+  @if (saved()) { <p class="transaction-success" role="status">Операция сохранена. Журнал обновляется.</p> }
+  @if (authError() === 401) {
+    <p class="transaction-error" role="alert">Сессия завершилась. <a [href]="loginUrl">Войти снова</a></p>
+  } @else if (authError() === 403) {
+    <p class="transaction-error" role="alert">Доступ запрещён. <button type="button" class="auth-link" [disabled]="auth.busy()" (click)="auth.logout()">Войти с другим аккаунтом</button></p>
+  }
+  @if (adding()) {
+    <app-transaction-dialog (cancelled)="adding.set(false)" (saved)="created($event)" (authFailed)="authFailed($event)" />
+  }
   <div class="toolbar">
     <div class="date-filter">
       <label

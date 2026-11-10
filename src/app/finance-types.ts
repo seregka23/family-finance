@@ -47,7 +47,7 @@ export type Operation = {
   account: string;
   shortAccount: string;
   plan: string;
-  source: 'SMS' | 'Чек';
+  source: 'SMS' | 'Чек' | 'Вручную';
   status: 'Готово' | 'Нужна проверка';
   participant: 'Я' | 'Семья';
   note: string;
@@ -70,3 +70,21 @@ export type ReserveAccount = Pick<
   AccountSummary,
   'id' | 'name' | 'currency' | 'balance' | 'reserved' | 'available'
 >;
+
+export type TransactionOptions = {
+  accounts: Array<{ id: string; name: string; currency: string }>;
+  categories: Array<{ id: string; name: string; section: string }>;
+};
+export type CreateOperation = {
+  requestId: string;
+  operationType: 'Расход' | 'Доход';
+  title: string;
+  amount: string;
+  currency: 'RSD' | 'EUR' | 'USD' | 'RUB';
+  operationDate: string;
+  operationTime: string;
+  accountId: string | null;
+  categoryId: string | null;
+  merchant: string;
+  note: string;
+};

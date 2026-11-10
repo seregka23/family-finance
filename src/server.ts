@@ -8,7 +8,8 @@ import express from 'express';
 import { join } from 'node:path';
 import { handleAuthRequest } from './server/api/auth';
 import { GET as expenses } from './server/api/expenses';
-import { GET as operations } from './server/api/operations';
+import { GET as transactionOptions } from './server/api/transaction-options';
+import { GET as operations, POST as createOperation } from './server/api/operations';
 import { allowedSsrHosts, handlePageRequest } from './server/pages';
 
 const app = express();
@@ -33,14 +34,32 @@ app.use('/api/auth', express.json({ limit: '4kb' }), (req, res, next) => {
     .catch(next);
 });
 
-app.get(['/api/operations', '/api/expenses'], async (req, res, next) => {
-  try {
-    const request = webRequest(req);
-    const response = await (req.path === '/api/expenses' ? expenses(request) : operations(request));
-    await writeResponseToNodeResponse(response, res);
-  } catch (error) {
-    next(error);
+app.post('/api/operations', express.json({ limit: '8kb' }), (req, res, next) => {
+  createOperation(webRequest(req))
+    .then((response) => writeResponseToNodeResponse(response, res))
+    .catch(next);
+});
+
+app.get(
+  ['/api/operations', '/api/expenses', '/api/transaction-options'],
+  async (req, res, next) => {
+    try {
+      const request = webRequest(req);
+      const response = await (req.path === '/api/expenses'
+        ? expenses(request)
+        : req.path === '/api/transaction-options'
+          ? transactionOptions(request)
+          : operations(request));
+      await writeResponseToNodeResponse(response, res);
+    } catch (error) {
+      next(error);
+    }
   }
+);
+app.all(['/api/operations', '/api/expenses', '/api/transaction-options'], (req, res) => {
+  res.setHeader('Cache-Control', 'private, no-store');
+  res.setHeader('Allow', req.path === '/api/operations' ? 'GET, HEAD, POST' : 'GET, HEAD');
+  res.status(405).json({ error: 'Method not allowed' });
 });
 app.use('/api', (_req, res) => {
   res.setHeader('Cache-Control', 'private, no-store');

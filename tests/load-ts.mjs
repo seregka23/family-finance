@@ -12,7 +12,7 @@ export function loadTs(file, mocks = {}) {
       compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 }
     }).outputText;
     const ast = ts.createSourceFile('module.js', js, ts.ScriptTarget.Latest, true);
-    const replacements = ast.statements.filter(ts.isImportDeclaration).map((statement) => {
+    const replacements = ast.statements.filter((statement) => ts.isImportDeclaration(statement) || (ts.isExportDeclaration(statement) && statement.moduleSpecifier)).map((statement) => {
       const specifier = statement.moduleSpecifier;
       const path = specifier.text;
       const replacement = Object.hasOwn(mocks, path)

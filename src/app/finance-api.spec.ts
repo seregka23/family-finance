@@ -23,6 +23,17 @@ describe('Finance API transport', () => {
     expect(expense.request.headers.get('X-Requested-With')).toBe('XMLHttpRequest');
     expect(expense.request.transferCache).toBe(false);
     expenseSubscription.unsubscribe();
+    const optionsSubscription = api.transactionOptions().subscribe();
+    const options = http.expectOne('/api/transaction-options');
+    expect(options.request.method).toBe('GET');
+    expect(options.request.transferCache).toBe(false);
+    optionsSubscription.unsubscribe();
+    const payload = { requestId: crypto.randomUUID(), operationType: 'Расход' as const, title: 'Purchase', amount: '12.34', currency: 'RSD' as const, operationDate: '2026-11-10', operationTime: '', merchant: '', note: '', accountId: null, categoryId: null };
+    const creation = api.createOperation(payload).subscribe();
+    const mutation = http.expectOne('/api/operations');
+    expect(mutation.request.method).toBe('POST');
+    expect(mutation.request.body).toEqual(payload);
+    creation.unsubscribe();
     http.verify();
   });
 });

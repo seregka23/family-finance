@@ -11,15 +11,16 @@ binding. The app provides its own invitation registration and password sign-in.
 D1 stores users, hashed passwords, hashed opaque sessions and single-use
 invitations. Enabled members and administrators share the family workspace;
 finance APIs verify the session and current role/status before reading data.
-Records remain managed through authenticated SQL administration.
-No general SQL endpoint or public write API is exposed.
+Signed-in members can add income and expense transactions from the operations
+page. Account/category administration remains available through authenticated
+SQL tools. No general SQL execution endpoint or unauthenticated write API exists.
 
 The database starts empty. There is no automatic import from the former data
 source and no sample financial data is inserted into production. The schema
 covers accounts, categories, operations, monthly plans, receipt items, reserves
 and reserve history. See [the D1 schema](docs/d1-schema.md).
 
-The authenticated read-only APIs retain the frontend contract:
+The authenticated read APIs retain the frontend contract:
 
 - `/api/operations?from=YYYY-MM-DD&to=YYYY-MM-DD&month=YYYY-MM-01`
 - `/api/expenses?month=YYYY-MM`
@@ -31,6 +32,47 @@ Missing authentication configuration or database returns 503; missing or expired
 sessions return API 401; disabled or unauthorized accounts receive 403. Anonymous
 page requests redirect to `/login`. Authentication screens are public and do not
 instantiate or fetch the finance workspace.
+
+## Adding a transaction
+
+Open **Операции → Добавить операцию**. Choose expense or income, enter a title,
+a positive amount with up to two decimal places, currency and date. Account,
+category, time, merchant and notes are optional. Decimal commas and points are
+accepted. Choosing an account selects its currency; mixed-currency account
+entries are rejected. You can record the first transaction without an account
+or category when the workspace is empty.
+
+Saving inserts the transaction and updates the selected known account balance
+atomically: expense subtracts, income adds. Unknown account balances stay unknown;
+unlinked transactions affect reports but no account balance. The journal refreshes
+and includes the saved date. New records are labelled `Вручную`, committed with
+status `Готово`, and attributed to the authenticated creator.
+
+The form disables repeated clicks while saving and reuses its request ID for an
+unchanged retry. A lost response can therefore be retried without creating another
+transaction or applying the account delta twice. Reusing an ID with different
+content or a different creator returns 409. Transactions that would exceed the
+reporting limits for monthly currency totals, account balance or known available
+balance return 409 and leave both the journal and account unchanged.
+
+- `GET /api/transaction-options`: active accounts and categories for the form.
+- `POST /api/operations`: authenticated, same-origin JSON creation.
+
+A create request contains a UUIDv4 `requestId`, `operationType` (`Расход` or
+`Доход`), `title`, decimal-string `amount`, `currency`, `operationDate`, optional
+`operationTime`, nullable `accountId`/`categoryId`, and optional `merchant`/`note`.
+First creation returns 201 `{id, created: true}`; an identical retry returns 200
+`{id, created: false}`. The server rejects unsupported write fields and validates
+all references and amounts; it does not accept client-controlled creator, source,
+status, reserve or receipt data.
+
+The production database has been prepared with `0004_manual_transactions.sql`.
+Apply it before deployment in any other environment. It adds manual
+entry metadata and an insertion trigger without changing existing records or
+recalculating imported account snapshots. Editing or deleting manual entries via
+SQL does not automatically undo their balance effects; trusted administrators
+must reconcile balances when doing so. This feature does not expose edit/delete
+or transfer endpoints.
 
 ## Registration and sign-in
 
@@ -78,7 +120,7 @@ The initial production auth migration and random Worker secret have been
 configured. An owner invitation is delivered separately as a private file.
 For another installation:
 
-1. Apply all D1 migrations, including `0002_auth.sql` and `0003_auth_password_scheme.sql`.
+1. Apply all D1 migrations through `0004_manual_transactions.sql`.
 2. Set the stable Worker secret `AUTH_SECRET`. The checked-in `AUTH_ORIGIN` is
    `https://family-finance.seregka23.workers.dev`.
 3. Deploy the updated Worker, then privately provide an invitation to the owner.
