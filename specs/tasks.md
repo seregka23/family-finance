@@ -1,61 +1,58 @@
-# Fix production registration failure
+# Add new transactions
 
 ## Task
 
-Fix registration returning HTTP 503 and the Russian service-unavailable message.
-Preserve account authorization, strong password hashing and existing finance data.
+Add a function for signed-in family members to create transactions in the D1
+finance workspace. The user explicitly confirmed that selecting an account must
+automatically update its balance.
 
 ## Acceptance criteria
 
-- Use a standard password KDF supported by Cloudflare's production limits without
-  lowering password security. Keep the separate pepper and per-user salts.
-- Add a forward-only schema migration for the actual credential scheme; do not
-  edit the applied auth migration, rebuild user tables or invalidate references.
-- Preserve legacy credential metadata and verification where supported; never
-  silently lower iteration counts to work around a provider limit.
-- Add safe internal diagnostics for unexpected auth failures, without logging
-  passwords, tokens, emails or parameterized SQL.
-- Reproduce the production PBKDF2 cap in tests, exercise real native scrypt and
-  register/login against the built Worker and D1, and retain finance regressions.
-- Pass builds, strict TypeScript, deployment packaging and read-only review;
-  apply the additive migration before the new code is deployed.
+- Provide an accessible form on the operations page for expenses and income,
+  exact amounts, currency, date, title and optional account/category/time/notes.
+- Support a completely empty workspace by allowing an unlinked transaction.
+- Enforce session authorization, configured Origin, JSON/body limits and strict
+  server-side field/reference/currency/date/monetary validation before writes.
+- Store records as manual transactions with creator metadata and show them in the
+  journal, monthly plan actuals and expense reports.
+- Apply expense/income account deltas atomically with insertion; preserve unknown
+  balances and imported records, and reject unreportable resulting balances.
+- Prevent duplicate inserts or balance changes on retries/concurrent submissions;
+  reject reuse of an ID for different content or another creator.
+- Preserve the form on recoverable errors, handle expired/denied sessions safely,
+  and refresh filters/date range so the saved transaction is visible.
+- Add a forward-only D1 migration and meaningful API/Angular/real Worker tests;
+  pass both builds, TypeScript, packaging and read-only review.
+- Apply only schema preparation remotely; never create test transactions in the
+  user's production financial data.
 
-## Findings and status
+## Status
 
-Production registration reached all rate-limit stages but returned app503 without
-creating a user or consuming the invitation. Its invocation outcome was `ok`,
-CPU 4 ms, wall 772 ms. Runtime bindings and auth migrations were present.
+Implementation complete. Read-only review has no remaining blocking findings.
 
-Upstream workerd defines a default 100,000-iteration PBKDF2 cap; local workerd's
-server factory disables the cap. A new production-limit regression reproduces
-our previous 600,000-iteration registration failure. Both WebCrypto and Node PBKDF2
-share the same limit, so changing only the API would not fix it.
+Validation:
 
-Implementation complete and reviewed without blocking findings.
+- `npm test`: both production builds, 40 Node/model/API/runtime tests and
+  29 Angular component tests passed (69 total).
+- Tests cover concurrent/idempotent inserts, correct income/expense deltas,
+  empty workspaces, nullable balances, exact decimals, authorization, Origin/body
+  guards, invalid references and rollback of reporting/availability overflows.
+- The actual local Worker+D1 test creates transactions through HTTP and verifies
+  balances, monthly plan actuals, reports and concurrent monthly-limit rejection.
+- UI tests cover successful refresh, currency locking, options reload failures,
+  retry IDs, busy/cancel behavior and hidden cached data after auth failures.
+- Strict TypeScript, generated types and whitespace checks passed.
+- Local migration command and deployment dry run passed: 36 browser assets,
+  1376.24 KiB module upload (314.94 KiB gzip).
 
-New registrations use native scrypt N=32768, r=8, p=3, 32-byte output and a
-64 MiB memory ceiling, with the original per-user salt and HMAC pepper. This
-matches the OWASP recommended 32 MiB configuration and stays under the production
-scrypt cost ceiling (786432 < 1048576). Additive migration0003 introduces the
-actual `password_scheme` discriminator without rebuilding or deleting anything;
-legacy verification never silently reduces its iteration count.
+Production preparation: applied and recorded `0004_manual_transactions.sql`.
+Verified foreign-key integrity and unchanged operation/account row counts. No
+production test transaction was created and no existing balance was modified.
+The new code becomes live after PR merge and the existing deployment pipeline.
 
-Validation passed:
-
-- `npm test`: both production builds, 33 Node/model/API/runtime tests and
-  22 Angular tests (55 total).
-- Explicit production PBKDF2 limit reproduced the original503 before the fix;
-  registration and login now succeed with that limit enabled, using real scrypt.
-- Independent native scrypt vector, migration record preservation, legacy
-  behavior and diagnostic log privacy regressions passed.
-- Strict TypeScript, generated bindings, whitespace and deployment dry run passed:
-  34 assets;1285.31 KiB module (293.41 KiB gzip).
-
-Applied and recorded `0003_auth_password_scheme.sql` on the production D1 database.
-Verified no foreign-key violations, no users yet and the existing owner invitation
-still unused. No finance records, credentials, sessions or invitations were reset.
-New application code awaits PR merge/deployment through the existing pipeline.
-Live registration/login on the new code has not been verified; direct site HTTP
-access was unavailable to this execution environment, so production logs and
-server-side database checks were used for diagnosis. Retry the existing invitation
-after deployment, then confirm successful registration and login.
+This is the first application-owned finance write endpoint. Account/category
+administration and transaction editing, transfers, deletion, receipt entry and
+reserve spending remain outside this task. Imported data still does not adjust
+account snapshots automatically. Manual insert guards reject monthly gross or
+known availability outside the reporting bound so successful writes cannot make
+those reports unreadable.

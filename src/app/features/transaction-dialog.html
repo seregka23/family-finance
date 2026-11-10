@@ -1,0 +1,25 @@
+<dialog #dialog class="transaction-dialog" aria-labelledby="transaction-title" (cancel)="onCancel($event)">
+  <form (submit)="submit($event)" novalidate>
+    <div class="transaction-dialog-head">
+      <h2 id="transaction-title">Добавить операцию</h2>
+      <button type="button" class="transaction-close" (click)="close()" [disabled]="busy()" aria-label="Закрыть">×</button>
+    </div>
+    <fieldset [disabled]="busy()" class="transaction-fields">
+      <label>Тип операции<select [formField]="fields.operationType"><option value="Расход">Расход</option><option value="Доход">Доход</option></select></label>
+      <label>Название<input [formField]="fields.title" /></label>
+      <label>Сумма<input [formField]="fields.amount" type="text" inputmode="decimal" placeholder="Например, 1250,50" /></label>
+      <label>Валюта<select [formField]="fields.currency"><option>RSD</option><option>EUR</option><option>USD</option><option>RUB</option></select></label>
+      <label>Дата<input [formField]="fields.operationDate" type="date" /></label>
+      <label>Время <small>(необязательно)</small><input [formField]="fields.operationTime" type="time" /></label>
+      <label>Счёт <small>(необязательно)</small><select [formField]="fields.accountId" (change)="accountChanged($event)"><option value="">Без счёта</option>@for (account of options().accounts; track account.id) { <option [value]="account.id" [disabled]="!['RSD', 'EUR', 'USD', 'RUB'].includes(account.currency)">{{ account.name }} · {{ account.currency }}</option> }</select></label>
+      <p class="transaction-hint">{{ model().accountId ? (model().operationType === 'Расход' ? 'Сумма будет вычтена из баланса счёта.' : 'Сумма будет добавлена к балансу счёта.') : 'Без счёта операция не изменит баланс.' }}</p>
+      <label>Категория <small>(необязательно)</small><select [formField]="fields.categoryId"><option value="">Без категории</option>@for (category of options().categories; track category.id) { <option [value]="category.id">{{ category.name }}{{ category.section ? ' · ' + category.section : '' }}</option> }</select></label>
+      <label>Магазин или получатель <small>(необязательно)</small><input [formField]="fields.merchant" /></label>
+      <label>Комментарий <small>(необязательно)</small><textarea [formField]="fields.note"></textarea></label>
+    </fieldset>
+    @if (loading()) { <p role="status">Загружаем счета и категории…</p> }
+    @if (error()) { <p class="transaction-error" role="alert">{{ error() }}</p> }
+    @if (optionsFailed()) { <button type="button" class="refresh-button" (click)="loadOptions()" [disabled]="busy()">Обновить счета и категории</button> }
+    <div class="transaction-dialog-actions"><button type="button" class="refresh-button" (click)="close()" [disabled]="busy()">Отмена</button><button type="submit" class="cta" [disabled]="busy() || loading() || !optionsReady()">{{ busy() ? 'Сохраняем…' : 'Сохранить' }}</button></div>
+  </form>
+</dialog>

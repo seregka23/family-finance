@@ -8,7 +8,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import { createHash, randomBytes } from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { migrationSql } from './d1-fixture.mjs';
 import { assertApplicationRuntime, runtimeEnv } from './public-runtime.mjs';
 import { seedSql, assertPopulatedOperations } from './d1-seed.mjs';
@@ -109,8 +109,12 @@ test(
       assert.equal((await authPost('logout', {}, loginCookie)).status, 200);
       assert.equal((await request('/api/auth/session', { Cookie: loginCookie })).status, 401);
       const allowedRequest = (path) => request(path, { Cookie: cookie });
+      const createOperation = (payload) => fetch(`http://127.0.0.1:${port}/api/operations`, { method: 'POST', headers: { Origin: `http://127.0.0.1:${port}`, 'Content-Type': 'application/json', Cookie: cookie }, body: JSON.stringify(payload) });
+      const initial = await createOperation({ requestId: randomUUID(), operationType: 'Расход', title: 'First unlinked entry', amount: '1.25', currency: 'RSD', operationDate: '2030-01-01' });
+      assert.equal(initial.status, 201, await initial.clone().text());
       const seed = join(temporary, 'seed.sql');
-      await writeFile(seed, seedSql());
+      await writeFile(seed, seedSql() + `
+INSERT INTO operations(id,operation_type,amount_minor,currency,operation_date,status) VALUES ('runtime-near-limit','Расход',90071992547408,'RSD','2026-10-01','Готово');`);
       const stopped = once(server, 'exit');
       server.kill('SIGTERM');
       await stopped;
@@ -134,6 +138,42 @@ test(
       const receiptData = await (await allowedRequest('/api/operations?from=2026-08-20&to=2026-08-20&month=2026-08-01')).json();
       assert.equal(receiptData.receipts.items[0].itemCount, 2);
       assert.equal(receiptData.receipts.items[0].total, 3);
+
+      const transactionOptions = await (await allowedRequest('/api/transaction-options')).json();
+      assert.ok(transactionOptions.accounts.some((account) => account.id === 'cash'));
+      const manual = { requestId: randomUUID(), operationType: 'Расход', title: 'Runtime manual expense', amount: '12.34', currency: 'RSD', operationDate: '2026-08-20', accountId: 'cash', categoryId: 'food' };
+      const sameId = await Promise.all([createOperation(manual), createOperation(manual)]);
+      assert.deepEqual(sameId.map((response) => response.status).sort(), [200, 201]);
+      const duplicate = await createOperation(manual);
+      assert.equal(duplicate.status, 200);
+      assert.equal((await duplicate.json()).created, false);
+      assert.equal((await createOperation({ ...manual, amount: '12.35' })).status, 409);
+      const incomes = await Promise.all([
+        createOperation({ ...manual, requestId: randomUUID(), operationType: 'Доход', amount: '20.01' }),
+        createOperation({ ...manual, requestId: randomUUID(), amount: '0.10' }),
+        createOperation({ ...manual, requestId: randomUUID(), amount: '0.20' })
+      ]);
+      assert.deepEqual(incomes.map((response) => response.status), [201, 201, 201]);
+      assert.equal((await createOperation({ ...manual, requestId: randomUUID(), operationType: 'Доход', amount: '900719925474.09' })).status, 409);
+      assert.equal((await createOperation({ ...manual, requestId: randomUUID(), categoryId: 'missing' })).status, 400);
+      const refreshed = await (await allowedRequest('/api/operations?from=2026-08-01&to=2026-08-31&month=2026-08-01')).json();
+      assert.equal(refreshed.accounts.find((account) => account.id === 'cash').balance, 1007.37);
+      assert.equal(refreshed.monthlyPlan.items[0].actual, 17.37);
+      assert.equal(refreshed.operations.find((operation) => operation.title === 'Runtime manual expense').source, 'Вручную');
+      const refreshedExpenses = await (await allowedRequest('/api/expenses?month=2026-08')).json();
+      assert.equal(refreshedExpenses.currencies.find((item) => item.currency === 'RSD').total, 17.37);
+
+      const monthly = { ...manual, accountId: 'cash', categoryId: null, operationDate: '2026-10-20', amount: '0.01' };
+      const monthlyRace = await Promise.all([
+        createOperation({ ...monthly, requestId: randomUUID() }),
+        createOperation({ ...monthly, requestId: randomUUID() })
+      ]);
+      assert.deepEqual(monthlyRace.map((response) => response.status).sort(), [201, 409]);
+      const boundedMonth = await (await allowedRequest('/api/expenses?month=2026-10')).json();
+      assert.equal(Math.round(boundedMonth.currencies[0].total * 100), 90071992547409);
+      const unchangedAccount = await (await allowedRequest('/api/operations?from=2026-10-01&to=2026-10-31&month=2026-10-01')).json();
+      assert.equal(unchangedAccount.operations.length, 2);
+      assert.equal(unchangedAccount.accounts.find((account) => account.id === 'cash').balance, 1007.36);
 
       const font = await allowedRequest('/fonts/geist-98bbbccb.woff2');
       assert.equal(font.status, 200);

@@ -1,3 +1,4 @@
+export { POST } from './transactions';
 import { requireAccess } from '../auth';
 import type { FinanceData, Operation } from '../../app/finance-types';
 import { currentMonthStart, validDate, validPeriod } from '../../app/models/finance-ui-model';
@@ -114,7 +115,9 @@ export async function GET(request: Request, database?: FinanceDatabase) {
         'Не привязана',
       reserveName: text(row, 'reserve_name'),
       reserveAmount: amount(row, 'reserve_amount_minor')!,
-      source: text(row, 'source') as Operation['source'],
+      source: (row['entry_method'] === 'manual'
+        ? 'Вручную'
+        : text(row, 'source')) as Operation['source'],
       status: text(row, 'status') as Operation['status'],
       participant: text(row, 'participant') as Operation['participant'],
       note: text(row, 'note'),

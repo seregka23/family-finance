@@ -1,9 +1,11 @@
+import { By } from '@angular/platform-browser';
+import { TransactionDialog } from './features/transaction-dialog';
 import { AuthService } from './auth-service';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
-import { of, Subject } from 'rxjs';
+import { of, Subject, throwError } from 'rxjs';
 import { HttpErrorResponse } from '@angular/common/http';
 import type { FinanceData } from './finance-types';
 import { App } from './app';
@@ -114,6 +116,38 @@ describe('Routed finance workspace', () => {
     await fixture.whenStable();
     expect(fixture.nativeElement.querySelector('#auth-title')?.textContent).toBe('Регистрация');
     expect(operations).not.toHaveBeenCalled();
+  });
+
+  it('refreshes journal and resets filters after saving an operation outside the current period', async () => {
+    const operations = vi.fn(() => of(fixtureData));
+    const creation = new Subject<{ id: string; created: boolean }>();
+    TestBed.overrideProvider(FinanceApi, { useValue: { operations, transactionOptions: () => of({ accounts: [], categories: [] }), createOperation: () => creation } });
+    const fixture = TestBed.createComponent(App);
+    await TestBed.inject(Router).navigateByUrl('/operations'); await fixture.whenStable();
+    const workspace = TestBed.inject(FinanceWorkspace);
+    workspace.categoryFilter.set('Продукты'); workspace.operationAccountFilter.set('A');
+    fixture.nativeElement.querySelector('.transaction-add').click(); await fixture.whenStable();
+    const dialog = fixture.debugElement.query(By.directive(TransactionDialog)).componentInstance as TransactionDialog;
+    dialog.model.update((value) => ({ ...value, title: 'Older purchase', amount: '2.00', operationDate: '2026-08-20' })); await fixture.whenStable();
+    const previousCalls = operations.mock.calls.length;
+    dialog.submit(new Event('submit', { cancelable: true })); creation.next({ id: 'created', created: true }); await fixture.whenStable();
+    expect(fixture.nativeElement.querySelector('app-transaction-dialog')).toBeNull();
+    expect(fixture.nativeElement.querySelector('.transaction-success')).not.toBeNull();
+    expect(workspace.period()).toEqual({ from: '2026-08-20', to: '2026-08-20' });
+    expect(workspace.categoryFilter()).toBe('Все'); expect(workspace.operationAccountFilter()).toBe('Все');
+    expect(operations.mock.calls.length).toBeGreaterThan(previousCalls);
+  });
+  it.each([401, 403] as const)('closes a new transaction and clears old selection after save fails %s', async (status) => {
+    const creation = new Subject<{ id: string; created: boolean }>();
+    TestBed.overrideProvider(FinanceApi, { useValue: { operations: vi.fn().mockReturnValueOnce(of(fixtureData)).mockReturnValue(throwError(() => new HttpErrorResponse({ status }))), transactionOptions: () => of({ accounts: [], categories: [] }), createOperation: () => creation } });
+    const fixture = TestBed.createComponent(App); await TestBed.inject(Router).navigateByUrl('/operations'); await fixture.whenStable();
+    fixture.nativeElement.querySelector('.transaction-add').click(); await fixture.whenStable();
+    const workspace = TestBed.inject(FinanceWorkspace); workspace.selected.set(fixtureData.operations[0]);
+    const dialog = fixture.debugElement.query(By.directive(TransactionDialog)).componentInstance as TransactionDialog;
+    dialog.model.update((value) => ({ ...value, title: 'Purchase', amount: '2.00' })); await fixture.whenStable();
+    dialog.submit(new Event('submit', { cancelable: true })); creation.error(new HttpErrorResponse({ status })); await fixture.whenStable();
+    expect(workspace.selected()).toBeNull(); expect(workspace.operations()).toHaveLength(0); expect(fixture.nativeElement.querySelector('app-transaction-dialog')).toBeNull();
+    expect(fixture.nativeElement.querySelector('.transaction-error')).not.toBeNull();
   });
 
 });
